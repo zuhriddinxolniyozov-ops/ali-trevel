@@ -166,7 +166,8 @@ transport options have no destination, so a limited campaign does not discount t
   Internal admin notes are never e-mailed.
 - Without `EMAIL_HOST` in `backend/.env`, e-mails are printed in the server console instead of being sent. Sending never delays or
   breaks a booking: it runs in the background and failures are only logged.
-- Telegram: create a bot with @BotFather, put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` (see `.env.example`).
+- Telegram: create a bot with @BotFather and put `TELEGRAM_BOT_TOKEN` in `backend/.env`. Open the bot in Telegram, press Start, then run
+  `python manage.py telegram_setup`: it names the bot, finds your chat, saves `TELEGRAM_CHAT_ID` and sends a test message.
 
 ## Going live (a Linux server)
 
