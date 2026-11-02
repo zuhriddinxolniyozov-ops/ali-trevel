@@ -65,6 +65,7 @@ class Command(BaseCommand):
             chat = chats[-1]
             chat_id = str(chat["id"])
             save_chat_id(chat_id)
-            self.stdout.write(f"Chat found: {chat.get('title') or chat.get('first_name') or chat_id} ({chat_id}) — saved in .env.")
+            name = str(chat.get('title') or chat.get('first_name') or chat_id).encode('ascii', 'replace').decode()  # Windows consoles cannot print every alphabet
+            self.stdout.write(f"Chat found: {name} ({chat_id}); saved in .env.")
         call(token, "sendMessage", {"chat_id": chat_id, "text": "✅ ALI TRAVEL: Telegram alerts are connected. New booking requests, messages and reviews will appear here."})
         self.stdout.write(self.style.SUCCESS("Test message sent."))
