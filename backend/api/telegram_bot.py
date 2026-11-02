@@ -6,8 +6,10 @@ traveller send a request that arrives in the team's Telegram and in the admin pa
 
 `Bot` only needs a function `call(method, payload)` that talks to Telegram, so it is easy to test; `manage.py telegram_bot` runs it.
 """
+import datetime
 import html
 import logging
+import re
 
 from django.conf import settings
 
@@ -56,6 +58,39 @@ def price_html(tour, lang, cache):
     if percent > 0:
         return f"<s>{money(base)}</s> <b>{money(base * (100 - percent) / 100)}</b> (−{percent}%)"
     return f"<b>{money(base)}</b>"
+
+
+BOOK_STATES = ("book_date", "book_guests", "book_phone")
+
+
+def parse_date(value):
+    """A future date written as 2027-05-01, 01.05.2027, 01/05/2027 or 01-05-2027; otherwise None."""
+    for pattern in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            day = datetime.datetime.strptime(value.strip(), pattern).date()
+        except ValueError:
+            continue
+        return day if day >= datetime.date.today() else None
+    return None
+
+
+def tier_percent(tiers, guests):
+    ordered = sorted(tiers or models.default_group_tiers(), key=lambda t: -t["min"])
+    return next((t["percent"] for t in ordered if guests >= t["min"]), ordered[-1]["percent"])
+
+
+def per_person(tour, guests, lang, cache):
+    """What one traveller pays in a group of `guests`: the listed price, any discount, and the group-size percentage."""
+    percent, _ = effective_discount(tour, cache, lang)
+    price = float(tour.price_from_usd) * (100 - percent) / 100
+    if tour.group_pricing:
+        content = models.SiteContent.objects.filter(pk=1).first()
+        price *= tier_percent(content.group_pricing_tiers if content else None, guests) / 100
+    return round(price, 2)
+
+
+def is_team(user):
+    return bool(user.username) and user.username.lower() in {n.lstrip("@").lower() for n in settings.TELEGRAM_TEAM_USERNAMES}
 
 
 def button(label, data):
@@ -109,11 +144,11 @@ class Bot:
             [button(tx("menu_dest", lang), "dests"), button(tx("menu_tours", lang), "tours")],
             [button(tx("menu_classes", lang), "classes"), button(tx("menu_prices", lang), "prices")],
             [button(tx("menu_policy", lang), "policy"), button(tx("menu_contact", lang), "contact")],
-            [button(tx("menu_ask", lang), "ask")],
+            [button(tx("menu_mine", lang), "mine"), button(tx("menu_ask", lang), "ask")],
             [button(tx("menu_lang", lang), "lang")],
         ]
         if is_public_url(site()):
-            rows.insert(3, [{"text": tx("open_site", lang), "url": site()}])
+            rows.insert(4, [{"text": tx("open_site", lang), "url": site()}])
         self.send(chat, head or tx("welcome", lang), rows=rows)
 
     def back_row(self, lang):
@@ -130,9 +165,11 @@ class Bot:
                 self.send(chat, "…", reply_markup={"remove_keyboard": True})
             user.state = user.state_data = ""
             user.save()
+            if is_team(user):
+                self.send(chat, tx("team_note", user.lang or "en"))
             return self.choose_language(chat)
         lang = user.lang
-        if user.state == "asking":
+        if user.state == "asking" or user.state in BOOK_STATES:
             return self.collect_request(user, message, body)
         if command == "/contact":
             return self.show_contact(chat, lang)
@@ -149,6 +186,8 @@ class Bot:
             return self.menu(chat, lang)
         contact = message.get("contact") or {}
         phone = contact.get("phone_number", "")
+        if user.state in BOOK_STATES:
+            return self.continue_booking(user, body, phone)
         if not (body or phone):
             return self.send(chat, tx("ask_prompt", lang))
         tour = models.Tour.objects.filter(slug=user.state_data).first() if user.state_data else None
@@ -164,6 +203,72 @@ class Bot:
         user.save()
         self.send(chat, tx("ask_thanks", lang), reply_markup={"remove_keyboard": True})
         self.menu(chat, lang)
+
+    # ---- booking in the chat -----------------------------------------------------
+    def start_booking(self, user, slug, cache):
+        chat, lang = user.chat_id, user.lang
+        tour = models.Tour.objects.filter(slug=slug, status="published", price_from_usd__gt=0).first()
+        if not tour:
+            return self.list_tours(chat, lang, main_tours(), tx("pick_tour", lang), cache)
+        user.state, user.state_data = "book_date", slug
+        user.save()
+        self.send(chat, tx("book_date", lang, title=esc(loc(tour, "title", lang))), reply_markup=self.cancel_keyboard(lang))
+
+    def cancel_keyboard(self, lang, phone=False):
+        rows = ([[{"text": tx("share_phone", lang), "request_contact": True}]] if phone else []) + [[{"text": tx("cancel", lang)}]]
+        return {"keyboard": rows, "resize_keyboard": True, "one_time_keyboard": True}
+
+    def continue_booking(self, user, body, phone):
+        chat, lang = user.chat_id, user.lang
+        slug, *rest = user.state_data.split("|")
+        tour = models.Tour.objects.filter(slug=slug, status="published", price_from_usd__gt=0).first()
+        if not tour:
+            user.state = user.state_data = ""
+            user.save()
+            return self.menu(chat, lang)
+        if user.state == "book_date":
+            day = parse_date(body)
+            if not day:
+                return self.send(chat, tx("book_date_bad", lang))
+            user.state, user.state_data = "book_guests", f"{slug}|{day.isoformat()}"
+            user.save()
+            return self.send(chat, tx("book_guests", lang), reply_markup=self.cancel_keyboard(lang))
+        if user.state == "book_guests":
+            digits = re.sub(r"\D", "", body)
+            guests = int(digits) if digits else 0
+            if not 1 <= guests <= 50:
+                return self.send(chat, tx("book_guests_bad", lang))
+            each = per_person(tour, guests, lang, {})
+            user.state, user.state_data = "book_phone", f"{user.state_data}|{guests}"
+            user.save()
+            return self.send(chat, tx("book_phone", lang, guests=guests, per=money(each), total=money(each * guests)),
+                             reply_markup=self.cancel_keyboard(lang, phone=True))
+        number = phone or body
+        if len(re.sub(r"\D", "", number)) < 7:
+            return self.send(chat, tx("book_phone_bad", lang))
+        day, guests = datetime.date.fromisoformat(rest[0]), int(rest[1])
+        each = per_person(tour, guests, lang, {})
+        who = f"@{user.username}" if user.username else user.first_name or str(chat)
+        booking = models.BookingRequest.objects.create(
+            service_type="tour", service_slug=tour.slug, service_title=tour.title, full_name=user.first_name or who,
+            email=f"telegram-{chat}@telegram.invalid", phone=number.strip(), travel_date=day, guests=guests, estimated_total_usd=round(each * guests, 2),
+            details_summary=f"Booked in the Telegram bot by {who} (chat {chat}, language {lang}).\nGroup price: {money(each)} per person for {guests} traveler(s).",
+            lang=lang, telegram_chat_id=chat)
+        notifications.booking_created(booking)
+        user.state = user.state_data = ""
+        user.save()
+        self.send(chat, tx("book_done", lang, ref=booking.reference, title=esc(loc(tour, "title", lang))), reply_markup={"remove_keyboard": True})
+        self.menu(chat, lang)
+
+    def show_bookings(self, chat, lang):
+        bookings = models.BookingRequest.objects.filter(telegram_chat_id=chat).order_by("-created")[:10]
+        if not bookings:
+            return self.send(chat, tx("mine_none", lang), rows=[self.back_row(lang)])
+        lines = [tx("mine_head", lang), ""]
+        for b in bookings:
+            when = f" · {b.travel_date.isoformat()}" if b.travel_date else ""
+            lines.append(f"• <b>{esc(b.reference)}</b> — {esc(b.service_title)}{when} · {b.guests} · {esc(tx('status_' + b.status, lang))}")
+        self.send(chat, "\n".join(lines), rows=[self.back_row(lang)])
 
     # ---- buttons -----------------------------------------------------------------
     def on_callback(self, query):
@@ -200,6 +305,10 @@ class Bot:
             return self.show_policy(chat, lang)
         if data == "contact":
             return self.show_contact(chat, lang)
+        if data == "mine":
+            return self.show_bookings(chat, lang)
+        if data.startswith("b:"):
+            return self.start_booking(user, data[2:], cache)
         if data == "ask" or data.startswith("r:"):
             user.state, user.state_data = "asking", data[2:] if data.startswith("r:") else ""
             user.save()
@@ -257,6 +366,8 @@ class Bot:
             lines += ["", f"✨ <b>{esc(tx('highlights', lang))}</b>"] + [f"• {esc(h)}" for h in highlights[:5]]
         lines += ["", f"🌐 {esc(tx('web_line', lang))}: {site('/tours/' + tour.slug)}"]
         rows = [[button(tx("request_tour", lang), f"r:{tour.slug}")]]
+        if float(tour.price_from_usd) > 0:
+            rows.insert(0, [button(tx("book_tour", lang), f"b:{tour.slug}")])
         if is_public_url(site()):
             rows.insert(0, [{"text": tx("open_site", lang), "url": site("/tours/" + tour.slug)}])
         back = [button(tx("menu_tours", lang), "classes" if tour.tour_type == "workshop" else "tours")]

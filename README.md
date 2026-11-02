@@ -209,3 +209,14 @@ The bot (`@alitraveluzbot`) does two jobs: it alerts the team (see Notifications
   `deploy/alitravel-bot.service`. Run `python manage.py telegram_setup` once to name the bot and register its commands.
 - Links to the website are only shown as buttons when `SITE_URL` is a public `https://` address; before that they appear as text.
 - The bot's texts are in `backend/api/telegram_texts.py`.
+
+### Who receives the Telegram alerts
+
+- Alerts go **only to the team account(s)** named in `TELEGRAM_TEAM_USERNAMES` (default `Al1_travel`), never to travellers who talk
+  to the bot. For Telegram to allow it, the team account must open the bot once and press **Start** (with `manage.py telegram_bot`
+  running). The bot then confirms that the account is registered.
+- The team is told about every **booking from the website and from the bot** (the alert says which one), and every message and review.
+- Travellers can **book in the bot**: *Book this tour* asks for the date, the number of travellers (the group price is calculated)
+  and a phone number, then creates a normal booking request (visible in Admin → Bookings). When the team confirms, cancels or
+  completes it, the traveller is told in the same Telegram chat. *My bookings* lists their requests.
+- `python manage.py telegram_setup` describes the bot and shows whether the team account is connected.

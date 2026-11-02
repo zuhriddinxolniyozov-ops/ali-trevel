@@ -103,3 +103,76 @@ T = {
 def text(key, lang, **fields):
     entry = T[key]
     return (entry.get(lang) or entry["en"]).format(**fields) if fields else (entry.get(lang) or entry["en"])
+
+
+# ---- booking inside the bot ------------------------------------------------------------
+T.update({
+    "request_tour": {"en": "✉️ Ask about this tour", "uz": "✉️ Shu tur haqida savol", "ru": "✉️ Вопрос об этом туре", "fr": "✉️ Question sur ce circuit", "de": "✉️ Frage zu dieser Tour", "es": "✉️ Preguntar por este tour"},
+    "book_tour": {"en": "📅 Book this tour", "uz": "📅 Shu turni bron qilish", "ru": "📅 Забронировать этот тур", "fr": "📅 Réserver ce circuit", "de": "📅 Diese Tour buchen", "es": "📅 Reservar este tour"},
+    "menu_mine": {"en": "📖 My bookings", "uz": "📖 Mening bronlarim", "ru": "📖 Мои бронирования", "fr": "📖 Mes réservations", "de": "📖 Meine Buchungen", "es": "📖 Mis reservas"},
+    "book_date": {
+        "en": "📅 <b>{title}</b>\nWhen would you like to start? Write the date, for example <code>2027-05-01</code> or <code>01.05.2027</code>.",
+        "uz": "📅 <b>{title}</b>\nQachon boshlamoqchisiz? Sanani yozing, masalan <code>2027-05-01</code> yoki <code>01.05.2027</code>.",
+        "ru": "📅 <b>{title}</b>\nКогда вы хотите начать? Напишите дату, например <code>2027-05-01</code> или <code>01.05.2027</code>.",
+        "fr": "📅 <b>{title}</b>\nQuand souhaitez-vous commencer ? Écrivez la date, par exemple <code>2027-05-01</code> ou <code>01.05.2027</code>.",
+        "de": "📅 <b>{title}</b>\nWann möchten Sie beginnen? Schreiben Sie das Datum, zum Beispiel <code>2027-05-01</code> oder <code>01.05.2027</code>.",
+        "es": "📅 <b>{title}</b>\n¿Cuándo le gustaría empezar? Escriba la fecha, por ejemplo <code>2027-05-01</code> o <code>01.05.2027</code>."},
+    "book_date_bad": {
+        "en": "I could not read that date, or it is in the past. Please write it like <code>2027-05-01</code> or <code>01.05.2027</code>.",
+        "uz": "Sanani oʻqiy olmadim yoki u oʻtib ketgan. Iltimos, <code>2027-05-01</code> yoki <code>01.05.2027</code> koʻrinishida yozing.",
+        "ru": "Не удалось прочитать дату, или она уже прошла. Напишите, например, <code>2027-05-01</code> или <code>01.05.2027</code>.",
+        "fr": "Je n'ai pas pu lire cette date, ou elle est passée. Écrivez-la ainsi : <code>2027-05-01</code> ou <code>01.05.2027</code>.",
+        "de": "Das Datum konnte ich nicht lesen, oder es liegt in der Vergangenheit. Bitte schreiben Sie es so: <code>2027-05-01</code> oder <code>01.05.2027</code>.",
+        "es": "No pude leer esa fecha, o ya pasó. Escríbala así: <code>2027-05-01</code> o <code>01.05.2027</code>."},
+    "book_guests": {
+        "en": "👥 How many travelers? Write a number from 1 to 50. (Prices per person are lower for bigger groups.)",
+        "uz": "👥 Necha kishi sayohat qiladi? 1 dan 50 gacha son yozing. (Katta guruhlarda bir kishi narxi arzonroq.)",
+        "ru": "👥 Сколько путешественников? Напишите число от 1 до 50. (Для больших групп цена с человека ниже.)",
+        "fr": "👥 Combien de voyageurs ? Écrivez un nombre de 1 à 50. (Le prix par personne baisse pour les grands groupes.)",
+        "de": "👥 Wie viele Reisende? Schreiben Sie eine Zahl von 1 bis 50. (Für größere Gruppen ist der Preis pro Person niedriger.)",
+        "es": "👥 ¿Cuántos viajeros? Escriba un número del 1 al 50. (El precio por persona baja en grupos grandes.)"},
+    "book_guests_bad": {
+        "en": "Please write the number of travelers as a number from 1 to 50.", "uz": "Iltimos, sayyohlar sonini 1 dan 50 gacha son bilan yozing.",
+        "ru": "Напишите число путешественников цифрой от 1 до 50.", "fr": "Écrivez le nombre de voyageurs en chiffres, de 1 à 50.",
+        "de": "Bitte schreiben Sie die Zahl der Reisenden als Zahl von 1 bis 50.", "es": "Escriba el número de viajeros como cifra del 1 al 50."},
+    "book_phone": {
+        "en": "💵 {guests} × {per} per person = <b>{total}</b>\n(the price per person depends on the group size; the final price is confirmed by our team)\n\n📱 Last step: share your phone number so we can confirm the booking — press the button or type the number.",
+        "uz": "💵 {guests} × {per} (bir kishi) = <b>{total}</b>\n(bir kishi narxi guruh hajmiga bogʻliq; yakuniy narxni jamoamiz tasdiqlaydi)\n\n📱 Oxirgi qadam: bronni tasdiqlashimiz uchun telefon raqamingizni ulashing — tugmani bosing yoki raqamni yozing.",
+        "ru": "💵 {guests} × {per} с человека = <b>{total}</b>\n(цена с человека зависит от размера группы; окончательную цену подтверждает наша команда)\n\n📱 Последний шаг: поделитесь номером телефона, чтобы мы подтвердили бронирование — нажмите кнопку или напишите номер.",
+        "fr": "💵 {guests} × {per} par personne = <b>{total}</b>\n(le prix par personne dépend de la taille du groupe ; le prix final est confirmé par notre équipe)\n\n📱 Dernière étape : partagez votre numéro pour que nous confirmions la réservation — appuyez sur le bouton ou écrivez le numéro.",
+        "de": "💵 {guests} × {per} pro Person = <b>{total}</b>\n(der Preis pro Person hängt von der Gruppengröße ab; den endgültigen Preis bestätigt unser Team)\n\n📱 Letzter Schritt: Teilen Sie Ihre Telefonnummer, damit wir die Buchung bestätigen — Knopf drücken oder Nummer eintippen.",
+        "es": "💵 {guests} × {per} por persona = <b>{total}</b>\n(el precio por persona depende del tamaño del grupo; nuestro equipo confirma el precio final)\n\n📱 Último paso: comparta su teléfono para que confirmemos la reserva: pulse el botón o escriba el número."},
+    "book_phone_bad": {
+        "en": "That does not look like a phone number. Press the button or type it with the country code, e.g. +998 90 123 45 67.",
+        "uz": "Bu telefon raqamiga oʻxshamayapti. Tugmani bosing yoki davlat kodi bilan yozing, masalan +998 90 123 45 67.",
+        "ru": "Это не похоже на номер телефона. Нажмите кнопку или напишите номер с кодом страны, например +998 90 123 45 67.",
+        "fr": "Cela ne ressemble pas à un numéro de téléphone. Appuyez sur le bouton ou saisissez-le avec l'indicatif, par ex. +998 90 123 45 67.",
+        "de": "Das sieht nicht nach einer Telefonnummer aus. Drücken Sie den Knopf oder tippen Sie sie mit Ländervorwahl ein, z. B. +998 90 123 45 67.",
+        "es": "Eso no parece un número de teléfono. Pulse el botón o escríbalo con el prefijo del país, p. ej. +998 90 123 45 67."},
+    "book_done": {
+        "en": "✅ Request <b>{ref}</b> received for “{title}”.\nNothing is charged yet: our team will confirm availability and the final price and message you here.",
+        "uz": "✅ “{title}” uchun <b>{ref}</b> raqamli soʻrov qabul qilindi.\nHozircha hech narsa undirilmaydi: jamoamiz joy borligini va yakuniy narxni tasdiqlab, sizga shu yerda yozadi.",
+        "ru": "✅ Запрос <b>{ref}</b> на «{title}» получен.\nПока ничего не списывается: наша команда подтвердит наличие мест и окончательную цену и напишет вам здесь.",
+        "fr": "✅ Demande <b>{ref}</b> reçue pour « {title} ».\nRien n'est débité pour l'instant : notre équipe confirmera la disponibilité et le prix final et vous écrira ici.",
+        "de": "✅ Anfrage <b>{ref}</b> für „{title}“ erhalten.\nEs wird noch nichts abgebucht: Unser Team bestätigt Verfügbarkeit und Endpreis und schreibt Ihnen hier.",
+        "es": "✅ Solicitud <b>{ref}</b> recibida para «{title}».\nAún no se cobra nada: nuestro equipo confirmará la disponibilidad y el precio final y le escribirá aquí."},
+    "mine_head": {"en": "<b>Your bookings</b>", "uz": "<b>Sizning bronlaringiz</b>", "ru": "<b>Ваши бронирования</b>", "fr": "<b>Vos réservations</b>", "de": "<b>Ihre Buchungen</b>", "es": "<b>Sus reservas</b>"},
+    "mine_none": {
+        "en": "You have not booked anything in this chat yet. Open a tour and press “📅 Book this tour”.",
+        "uz": "Bu chatda hali hech narsa bron qilmagansiz. Turni oching va «📅 Shu turni bron qilish» ni bosing.",
+        "ru": "В этом чате вы пока ничего не бронировали. Откройте тур и нажмите «📅 Забронировать этот тур».",
+        "fr": "Vous n'avez encore rien réservé dans ce chat. Ouvrez un circuit et appuyez sur « 📅 Réserver ce circuit ».",
+        "de": "Sie haben in diesem Chat noch nichts gebucht. Öffnen Sie eine Tour und drücken Sie „📅 Diese Tour buchen“.",
+        "es": "Aún no ha reservado nada en este chat. Abra un tour y pulse «📅 Reservar este tour»."},
+    "status_pending": {"en": "waiting for confirmation", "uz": "tasdiq kutilmoqda", "ru": "ожидает подтверждения", "fr": "en attente de confirmation", "de": "wartet auf Bestätigung", "es": "pendiente de confirmación"},
+    "status_confirmed": {"en": "confirmed", "uz": "tasdiqlangan", "ru": "подтверждено", "fr": "confirmée", "de": "bestätigt", "es": "confirmada"},
+    "status_cancelled": {"en": "cancelled", "uz": "bekor qilingan", "ru": "отменено", "fr": "annulée", "de": "storniert", "es": "cancelada"},
+    "status_completed": {"en": "completed", "uz": "yakunlangan", "ru": "завершено", "fr": "terminée", "de": "abgeschlossen", "es": "completada"},
+    "team_note": {
+        "en": "✅ This account is registered as the <b>ALI TRAVEL team</b>: new bookings and messages from the website and from this bot will arrive here.",
+        "uz": "✅ Bu akkaunt <b>ALI TRAVEL jamoasi</b> sifatida roʻyxatdan oʻtdi: saytdan va shu botdan kelgan yangi bronlar va xabarlar shu yerga keladi.",
+        "ru": "✅ Этот аккаунт зарегистрирован как <b>команда ALI TRAVEL</b>: новые бронирования и сообщения с сайта и из этого бота будут приходить сюда.",
+        "fr": "✅ Ce compte est enregistré comme <b>équipe ALI TRAVEL</b> : les nouvelles réservations et messages du site et de ce bot arriveront ici.",
+        "de": "✅ Dieses Konto ist als <b>ALI-TRAVEL-Team</b> registriert: neue Buchungen und Nachrichten von der Website und aus diesem Bot kommen hier an.",
+        "es": "✅ Esta cuenta está registrada como <b>equipo de ALI TRAVEL</b>: aquí llegarán las nuevas reservas y mensajes del sitio y de este bot."},
+})

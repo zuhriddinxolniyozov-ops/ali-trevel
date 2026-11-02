@@ -164,7 +164,10 @@ else:
 # Who is told about new bookings, messages and reviews (defaults to the site e-mail), and the optional Telegram bot.
 NOTIFY_EMAILS = env_list('NOTIFY_EMAILS', 'alitravel004@gmail.com')
 TELEGRAM_BOT_TOKEN = env('TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = env('TELEGRAM_CHAT_ID')
+TELEGRAM_CHAT_ID = env('TELEGRAM_CHAT_ID')  # optional extra chat; normally leave empty
+# Telegram accounts that receive the team alerts. Only these accounts (and nobody else who talks to the bot) are told about
+# bookings. Each one must open the bot once and press Start so that Telegram lets the bot write to them.
+TELEGRAM_TEAM_USERNAMES = env_list('TELEGRAM_TEAM_USERNAMES', 'Al1_travel')
 NOTIFY_ASYNC = env_bool('NOTIFY_ASYNC', True)  # send in the background so a slow mail server never delays a booking
 
 REST_FRAMEWORK = {

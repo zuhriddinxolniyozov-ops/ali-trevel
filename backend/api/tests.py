@@ -474,3 +474,112 @@ class TelegramBotTests(APITestCase):
         self.press("contact")
         self.assertIn("+998901112233", self.api.last()["text"])
         self.assertIn("hello@example.com", self.api.last()["text"])
+
+
+from unittest import mock
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="123:abc", TELEGRAM_CHAT_ID="", TELEGRAM_TEAM_USERNAMES=["Al1_travel"], SITE_URL="https://alitravel.example")
+class TelegramBookingTests(APITestCase):
+    def setUp(self):
+        self.api = FakeTelegram()
+        self.bot = Bot(self.api)
+        self.tour = models.Tour.objects.create(
+            slug="city", title="City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture", duration_label="2 days",
+            group_type="Small group", summary="s", price_from_usd=200, status="published")
+
+    def say(self, text="", chat=77, username="anna_t", **extra):
+        self.bot.handle({"message": dict({"chat": {"id": chat}, "from": {"first_name": "Anna", "username": username}, "text": text}, **extra)})
+
+    def press(self, data, chat=77, username="anna_t"):
+        self.bot.handle({"callback_query": {"id": "1", "data": data, "from": {"first_name": "Anna", "username": username}, "message": {"chat": {"id": chat}}}})
+
+    def sign_up(self, chat=77, username="anna_t", lang="en"):
+        self.say("/start", chat=chat, username=username)
+        self.press(f"lang:{lang}", chat=chat, username=username)
+
+    def book(self, guests="4"):
+        self.sign_up()
+        self.press("b:city")
+        self.say("2099-05-01")
+        self.say(guests)
+        self.say(contact={"phone_number": "+4915112345"})
+
+    def test_booking_in_the_bot_creates_a_real_booking_with_the_group_price(self):
+        with mock.patch("api.notifications.telegram_send"):
+            self.book("4")
+        booking = models.BookingRequest.objects.get()
+        self.assertEqual((booking.service_slug, booking.guests, booking.telegram_chat_id, booking.lang), ("city", 4, 77, "en"))
+        self.assertEqual((booking.travel_date.isoformat(), booking.phone, booking.estimated_total_usd), ("2099-05-01", "+4915112345", Decimal("1200.00")))  # 200 x 150% x 4
+        self.assertIn(booking.reference, self.api.texts()[-2])
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "")
+
+    def test_the_team_hears_about_it_by_email_and_the_traveller_gets_no_email(self):
+        with mock.patch("api.notifications.telegram_send"):
+            self.book()
+        self.assertEqual([m.to for m in mail.outbox], [["team@example.com"]])
+        self.assertIn("(Telegram bot)", mail.outbox[0].subject)
+        self.assertIn("Source: Telegram bot", mail.outbox[0].body)
+
+    def test_alerts_go_only_to_the_team_account_not_to_other_users(self):
+        models.TelegramUser.objects.create(chat_id=1001, username="al1_travel", lang="uz")  # the team account (any capitalisation)
+        models.TelegramUser.objects.create(chat_id=2002, username="someone_else", lang="en")  # an ordinary traveller
+        with mock.patch("api.notifications.telegram_send") as send:
+            self.book()  # a booking made in the bot ...
+            self.client.post("/api/bookings-submit/", {"service_type": "tour", "service_slug": "city", "service_title": "City Tour", "full_name": "Bo", "email": "bo@example.com",
+                                                      "phone": "+998901112233", "travel_date": "2099-06-01", "guests": 2}, format="json")  # ... and one from the website
+        team_alerts = [call.args for call in send.call_args_list if call.args[0] == "1001"]
+        self.assertEqual(len(team_alerts), 2)
+        self.assertIn("(Telegram bot)", team_alerts[0][1])
+        self.assertIn("(Website)", team_alerts[1][1])
+        self.assertFalse([call for call in send.call_args_list if call.args[0] in ("2002", "77")])
+
+    def test_confirming_a_bot_booking_messages_the_traveller_in_the_chat(self):
+        with mock.patch("api.notifications.telegram_send"):
+            self.book()
+        booking = models.BookingRequest.objects.get()
+        self.client.force_authenticate(get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True))
+        with mock.patch("api.notifications.telegram_send") as send:
+            self.client.patch(f"/api/bookings/{booking.pk}/update_status/", {"status": "confirmed"}, format="json")
+        self.assertEqual([c.args[0] for c in send.call_args_list], [77])
+        self.assertIn("confirmed", send.call_args_list[0].args[1])
+        self.assertFalse([m for m in mail.outbox if any(a.endswith(".invalid") for a in m.to)])
+
+    def test_bad_answers_are_asked_again(self):
+        self.sign_up()
+        self.press("b:city")
+        self.say("yesterday")
+        self.assertIn("could not read that date", self.api.texts()[-1])
+        self.say("2000-01-01")
+        self.assertIn("could not read that date", self.api.texts()[-1])
+        self.say("2099-05-01")
+        self.say("a lot")
+        self.assertIn("number from 1 to 50", self.api.texts()[-1])
+        self.say("4")
+        self.say("12")
+        self.assertIn("does not look like a phone number", self.api.texts()[-1])
+        self.assertEqual(models.BookingRequest.objects.count(), 0)
+
+    def test_cancel_stops_a_booking_halfway(self):
+        self.sign_up()
+        self.press("b:city")
+        self.say("2099-05-01")
+        self.say("✖️ Cancel")
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "")
+        self.assertEqual(models.BookingRequest.objects.count(), 0)
+
+    def test_my_bookings_lists_only_this_chats_bookings(self):
+        with mock.patch("api.notifications.telegram_send"):
+            self.book()
+            models.BookingRequest.objects.create(service_type="tour", service_title="Other", full_name="X", email="x@example.com", phone="1", telegram_chat_id=999)
+            self.press("mine")
+        text = self.api.last()["text"]
+        self.assertIn("City Tour", text)
+        self.assertIn("waiting for confirmation", text)
+        self.assertNotIn("Other", text)
+
+    def test_the_team_account_is_told_it_is_registered(self):
+        self.say("/start", chat=1001, username="Al1_travel")
+        self.assertIn("registered as the <b>ALI TRAVEL team</b>", self.api.texts()[0])
+        self.say("/start", chat=2002, username="someone_else")
+        self.assertNotIn("ALI TRAVEL team", self.api.texts()[-2])

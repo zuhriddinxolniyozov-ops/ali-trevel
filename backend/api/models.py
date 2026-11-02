@@ -215,6 +215,7 @@ class BookingRequest(models.Model):
     status = models.CharField(max_length=12, choices=STATUS, default="pending")
     admin_notes = models.TextField(blank=True)
     lang = models.CharField(max_length=5, blank=True)  # the language the traveller was reading, for e-mails
+    telegram_chat_id = models.BigIntegerField(null=True, blank=True)  # set when the request was made in the Telegram bot
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -11,6 +11,7 @@ import threading
 import urllib.request
 
 from django.conf import settings
+from django.db import connection
 from django.core.mail import EmailMultiAlternatives
 
 log = logging.getLogger(__name__)
@@ -68,8 +69,14 @@ def _background(fn, *args):
         except Exception:  # a failed notification must never break the site
             log.exception("Notification failed")
 
+    def in_thread():
+        try:
+            safe()
+        finally:
+            connection.close()  # a thread must give its own database connection back
+
     if settings.NOTIFY_ASYNC:
-        threading.Thread(target=safe, daemon=True).start()
+        threading.Thread(target=in_thread, daemon=True).start()
     else:
         safe()
 
@@ -81,14 +88,33 @@ def _send_email(subject, body, to, reply_to=None):
     EmailMultiAlternatives(subject, body, settings.DEFAULT_FROM_EMAIL, to, reply_to=reply_to or None).send()
 
 
-def _send_telegram(text):
-    if not (settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_CHAT_ID):
-        return
+def telegram_send(chat_id, text):
+    """Send one Telegram message from the bot."""
     request = urllib.request.Request(
         f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
-        data=json.dumps({"chat_id": settings.TELEGRAM_CHAT_ID, "text": text[:3900], "disable_web_page_preview": True}).encode(),
+        data=json.dumps({"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True}).encode(),
         headers={"Content-Type": "application/json"})
     urllib.request.urlopen(request, timeout=6).read()
+
+
+def team_chat_ids():
+    """Telegram chats of the team: the accounts named in TELEGRAM_TEAM_USERNAMES that have started the bot (plus TELEGRAM_CHAT_ID if set)."""
+    from .models import TelegramUser
+    names = {name.lstrip("@").lower() for name in settings.TELEGRAM_TEAM_USERNAMES}
+    ids = [str(settings.TELEGRAM_CHAT_ID)] if settings.TELEGRAM_CHAT_ID else []
+    ids += [str(u.chat_id) for u in TelegramUser.objects.exclude(username="") if u.username.lower() in names]
+    return list(dict.fromkeys(ids))
+
+
+def _send_telegram(text):
+    """Alert the team (and nobody else) in Telegram."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return
+    for chat in team_chat_ids():
+        try:
+            telegram_send(chat, text)
+        except Exception:
+            log.exception("Telegram alert to %s failed", chat)
 
 
 def _tell_the_team(subject, text, reply_to=None):
@@ -124,39 +150,54 @@ def _booking_data(booking):
         "details": (booking.details_summary or "")[:1500], "requests": (booking.special_requests or "")[:600], "status": booking.status,
         "total": f"${booking.estimated_total_usd:,.2f}" if booking.estimated_total_usd else "-", "phone_team": phone, "total_line": total,
         "review_url": f"{settings.SITE_URL}/tours/{booking.service_slug}" if booking.service_slug else settings.SITE_URL,
+        "chat": booking.telegram_chat_id, "source": "Telegram bot" if booking.telegram_chat_id else "Website",
     }
 
 
-def _traveller_email(kind, data):
+def _traveller_text(kind, data):
     subject, body = _template(kind, data["lang"])
     fields = _fields(data)
     if data["lang"] != "en" and data["lang"] in TEXT[kind]:
         fields["total"] = fields["total"].replace("Estimated total", {"uz": "Taxminiy jami", "ru": "Ориентировочная сумма"}.get(data["lang"], "Estimated total")).replace(
             "(sample rate, confirmed by our team)", {"uz": "(namunaviy tarif, jamoamiz tasdiqlaydi)", "ru": "(примерный тариф, подтверждается нашей командой)"}.get(data["lang"], ""))
-    _send_email(subject.format(**fields), body.format(**fields), [data["email"]])
+    return subject.format(**fields), body.format(**fields)
+
+
+def _traveller_email(kind, data):
+    if data["email"].endswith(".invalid"):  # bookings made in the Telegram bot have no real e-mail address
+        return
+    _send_email(*_traveller_text(kind, data), [data["email"]])
+
+
+def _traveller_telegram(kind, data):
+    if data["chat"] and settings.TELEGRAM_BOT_TOKEN:
+        subject, body = _traveller_text(kind, data)
+        telegram_send(data["chat"], f"{subject}\n\n{body}")
 
 
 def _tell_about_booking(data):
-    text = (f"Reference: {data['ref']}\nTour / service: {data['service']}\nName: {data['name']}\nE-mail: {data['email']}\nPhone: {data['phone']}\n"
+    text = (f"Source: {data['source']}\nReference: {data['ref']}\nTour / service: {data['service']}\nName: {data['name']}\nE-mail: {data['email']}\nPhone: {data['phone']}\n"
             f"Date: {data['date'] or '-'}\nGuests: {data['guests']}\nEstimated total: {data['total']}\n")
     if data["details"]:
         text += f"\nDetails:\n{data['details']}\n"
     if data["requests"]:
         text += f"\nSpecial requests:\n{data['requests']}\n"
     text += f"\nOpen: {settings.SITE_URL}/admin/bookings"
-    _tell_the_team(f"New booking request {data['ref']}", text, reply_to=data["email"])
+    _tell_the_team(f"New booking request {data['ref']} ({data['source']})", text, reply_to=None if data["email"].endswith(".invalid") else data["email"])
 
 
 def booking_created(booking):
     data = _booking_data(booking)
     _background(_tell_about_booking, data)
-    _background(_traveller_email, "received", data)
+    _background(_traveller_email, "received", data)  # skipped for Telegram bookings: the bot answers in the chat itself
 
 
 def booking_status_changed(booking):
     """Tell the traveller when the team confirms, cancels or completes a request."""
     if booking.status in ("confirmed", "cancelled", "completed"):
-        _background(_traveller_email, booking.status, _booking_data(booking))
+        data = _booking_data(booking)
+        _background(_traveller_email, booking.status, data)
+        _background(_traveller_telegram, booking.status, data)
 
 
 def booking_cancelled_by_traveller(booking):
