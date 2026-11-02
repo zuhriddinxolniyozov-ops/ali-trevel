@@ -186,3 +186,29 @@ T.update({
         "de": "📲 <b>Folgen Sie ALI TRAVEL</b> für Fotos, Videos und Geschichten von der Seidenstraße und sehen Sie, wie unsere Gäste reisen:",
         "es": "📲 <b>Siga a ALI TRAVEL</b> para ver fotos, vídeos e historias de la Ruta de la Seda y cómo viajan nuestros huéspedes:"},
 })
+
+# ---- rating a finished trip ------------------------------------------------------------------------------
+T.update({
+    "review_ask": {
+        "en": "{stars} Thank you! Please write a short comment about your trip: what did you enjoy most? (or press “Skip”)",
+        "uz": "{stars} Rahmat! Safaringiz haqida qisqa izoh yozing: sizga nima eng yoqdi? (yoki «Oʻtkazib yuborish» ni bosing)",
+        "ru": "{stars} Спасибо! Напишите короткий комментарий о поездке: что понравилось больше всего? (или нажмите «Пропустить»)",
+        "fr": "{stars} Merci ! Écrivez un court commentaire sur votre voyage : qu'avez-vous préféré ? (ou appuyez sur « Passer »)",
+        "de": "{stars} Danke! Schreiben Sie einen kurzen Kommentar zu Ihrer Reise: Was hat Ihnen am besten gefallen? (oder drücken Sie „Überspringen“)",
+        "es": "{stars} ¡Gracias! Escriba un breve comentario sobre su viaje: ¿qué fue lo que más le gustó? (o pulse «Omitir»)"},
+    "review_skip": {"en": "Skip", "uz": "Oʻtkazib yuborish", "ru": "Пропустить", "fr": "Passer", "de": "Überspringen", "es": "Omitir"},
+    "review_done": {
+        "en": "✅ Thank you! Your review was received and will appear on our website after a quick check.",
+        "uz": "✅ Rahmat! Sharhingiz qabul qilindi va qisqa tekshiruvdan soʻng saytimizda koʻrinadi.",
+        "ru": "✅ Спасибо! Ваш отзыв получен и появится на нашем сайте после короткой проверки.",
+        "fr": "✅ Merci ! Votre avis a bien été reçu et apparaîtra sur notre site après une courte vérification.",
+        "de": "✅ Danke! Ihre Bewertung ist eingegangen und erscheint nach einer kurzen Prüfung auf unserer Website.",
+        "es": "✅ ¡Gracias! Hemos recibido su opinión y aparecerá en nuestro sitio tras una breve revisión."},
+    "review_already": {
+        "en": "You have already reviewed this trip. Thank you!", "uz": "Siz bu safarni allaqachon baholagansiz. Rahmat!",
+        "ru": "Вы уже оставили отзыв об этой поездке. Спасибо!", "fr": "Vous avez déjà donné votre avis sur ce voyage. Merci !",
+        "de": "Sie haben diese Reise bereits bewertet. Danke!", "es": "Ya valoró este viaje. ¡Gracias!"},
+    "come_again": {
+        "en": "We look forward to welcoming you again! 🌟", "uz": "Sizni yana kutib qolamiz! 🌟", "ru": "Будем рады видеть вас снова! 🌟",
+        "fr": "Nous serons ravis de vous accueillir à nouveau ! 🌟", "de": "Wir freuen uns, Sie wieder bei uns zu begrüßen! 🌟", "es": "¡Esperamos volver a recibirle! 🌟"},
+})

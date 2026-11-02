@@ -670,3 +670,76 @@ class ReviewThanksTests(APITestCase):
     def test_nobody_is_mailed_when_no_email_was_left_but_the_team_is_told(self):
         self.review(email="")
         self.assertEqual([m.to for m in mail.outbox], [["team@example.com"]])
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="123:abc", TELEGRAM_CHAT_ID="", TELEGRAM_TEAM_USERNAMES=["Al1_travel"], SITE_URL="http://localhost:5173")
+class TelegramReviewTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.api = FakeTelegram()
+        self.bot = Bot(self.api)
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"instagram_url": "https://www.instagram.com/al1_travel1", "youtube_url": "https://youtube.com/@alitravel_z"})
+        models.Tour.objects.create(slug="city", title="City Tour", destination_name="Samarkand", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=100, status="published")
+        self.booking = models.BookingRequest.objects.create(
+            service_type="tour", service_slug="city", service_title="City Tour", full_name="Anna", email="telegram-77@telegram.invalid", phone="+4915112345",
+            guests=2, lang="uz", telegram_chat_id=77)
+        for step in ({"message": {"chat": {"id": 77}, "from": {"first_name": "Anna", "username": "anna_t"}, "text": "/start"}},
+                     {"callback_query": {"id": "1", "data": "lang:uz", "from": {"first_name": "Anna", "username": "anna_t"}, "message": {"chat": {"id": 77}}}}):
+            self.bot.handle(step)
+
+    def press(self, data, chat=77):
+        self.bot.handle({"callback_query": {"id": "1", "data": data, "from": {"first_name": "Anna", "username": "anna_t"}, "message": {"chat": {"id": chat}}}})
+
+    def say(self, text, chat=77):
+        self.bot.handle({"message": {"chat": {"id": chat}, "from": {"first_name": "Anna", "username": "anna_t"}, "text": text}})
+
+    def complete(self):
+        self.client.force_authenticate(get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True))
+        with mock.patch("api.notifications.telegram_send") as send:
+            self.client.patch(f"/api/bookings/{self.booking.pk}/update_status/", {"status": "completed"}, format="json")
+        return send
+
+    def test_completing_a_trip_asks_for_stars_in_the_chat(self):
+        send = self.complete()
+        chat, text = send.call_args.args[:2]
+        markup = send.call_args.args[2]
+        self.assertEqual(chat, 77)
+        self.assertIn("ALI TRAVEL bilan sayohat qilganingiz uchun rahmat", text)
+        self.assertIn("yulduzlarni bosib", text)
+        self.assertNotIn("localhost", text)
+        self.assertEqual([b["callback_data"] for b in markup["inline_keyboard"][0]], [f"rv:{self.booking.reference}:{n}" for n in range(1, 6)])
+
+    def test_a_rating_and_comment_become_a_verified_review_then_the_bot_invites_to_follow_and_return(self):
+        self.complete()
+        self.press(f"rv:{self.booking.reference}:5")
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "review")
+        self.assertIn("⭐⭐⭐⭐⭐", self.api.last()["text"])
+        self.say("Osh juda mazali bo'ldi!")
+        review = models.Review.objects.get()
+        self.assertEqual((review.rating, review.verified, review.status, review.reference, review.tour_slug), (5, True, "pending", self.booking.reference, "city"))
+        self.assertEqual((review.text, review.name, review.lang), ("Osh juda mazali bo'ldi!", "Anna", "uz"))
+        texts = self.api.texts()
+        self.assertTrue(any("Sharhingiz qabul qilindi" in t for t in texts))
+        follow = [t for t in texts if "kuzatib boring" in t][-1]
+        self.assertIn("Sizni yana kutib qolamiz", follow)
+        self.assertTrue([b for b in self.api.sent[-2][1]["reply_markup"]["inline_keyboard"][0] if "instagram.com" in b.get("url", "")])
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "")
+        self.assertTrue([m for m in mail.outbox if m.to == ["team@example.com"] and "review" in m.subject.lower()])  # the team is told
+
+    def test_skipping_saves_no_review_but_still_invites_to_return(self):
+        self.complete()
+        self.press(f"rv:{self.booking.reference}:4")
+        self.say("Oʻtkazib yuborish")
+        self.assertEqual(models.Review.objects.count(), 0)
+        self.assertTrue(any("Sizni yana kutib qolamiz" in t for t in self.api.texts()))
+
+    def test_a_trip_can_be_reviewed_only_once_and_only_by_its_own_chat(self):
+        self.complete()
+        self.press(f"rv:{self.booking.reference}:5")
+        self.say("Super")
+        self.press(f"rv:{self.booking.reference}:5")
+        self.assertIn("allaqachon baholagansiz", self.api.last()["text"])
+        self.assertEqual(models.Review.objects.count(), 1)
+        self.press(f"rv:{self.booking.reference}:5", chat=99)  # somebody else's chat
+        self.assertEqual(models.TelegramUser.objects.filter(state="review").count(), 0)
+        self.assertEqual(models.Review.objects.count(), 1)

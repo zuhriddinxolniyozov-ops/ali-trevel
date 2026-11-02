@@ -51,6 +51,14 @@ TEXT = {
         "ru": ("Ваше бронирование {ref} отменено — ALI TRAVEL",
                "Здравствуйте, {name}!\n\nВаше бронирование {ref} — «{service}» — отменено. Если это неожиданность или вы хотите поехать в другую дату, просто ответьте на это письмо или напишите нам в WhatsApp {phone}.\n\nALI TRAVEL"),
     },
+    "completed_tg": {
+        "en": ("Thank you for travelling with ALI TRAVEL",
+               "Hello {name},\n\nThank you for being with us on “{service}”! We would love to hear how it went. Tap the stars below to rate your trip, then write a short comment."),
+        "uz": ("ALI TRAVEL bilan sayohat qilganingiz uchun rahmat",
+               "Assalomu alaykum, {name}!\n\n“{service}” safarida biz bilan bo'lganingiz uchun rahmat! Safar qanday o'tganini eshitishni istardik. Quyidagi yulduzlarni bosib safarni baholang, so'ng qisqa izoh yozing."),
+        "ru": ("Спасибо, что путешествовали с ALI TRAVEL",
+               "Здравствуйте, {name}!\n\nСпасибо, что были с нами в поездке «{service}»! Нам очень важно знать, как всё прошло. Нажмите на звёзды ниже, чтобы оценить поездку, и напишите короткий комментарий."),
+    },
     "completed": {
         "en": ("Thank you for travelling with ALI TRAVEL",
                "Hello {name},\n\nThank you for travelling with us on “{service}”! We would love to hear how it went. Please share a short review: {review_url}\n\nSee you on the Silk Road again,\nALI TRAVEL"),
@@ -88,11 +96,14 @@ def _send_email(subject, body, to, reply_to=None):
     EmailMultiAlternatives(subject, body, settings.DEFAULT_FROM_EMAIL, to, reply_to=reply_to or None).send()
 
 
-def telegram_send(chat_id, text):
-    """Send one Telegram message from the bot."""
+def telegram_send(chat_id, text, markup=None):
+    """Send one Telegram message from the bot (with an inline keyboard when `markup` is given)."""
+    payload = {"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True}
+    if markup:
+        payload["reply_markup"] = markup
     request = urllib.request.Request(
         f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
-        data=json.dumps({"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True}).encode(),
+        data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"})
     urllib.request.urlopen(request, timeout=6).read()
 
@@ -182,9 +193,14 @@ def _traveller_email(kind, data):
 
 
 def _traveller_telegram(kind, data):
-    if data["chat"] and settings.TELEGRAM_BOT_TOKEN:
-        subject, body = _traveller_text(kind, data)
-        telegram_send(data["chat"], f"{subject}\n\n{body}")
+    if not (data["chat"] and settings.TELEGRAM_BOT_TOKEN):
+        return
+    if kind == "completed":  # in Telegram the traveller rates the trip with a tap on the stars, right in the chat
+        subject, body = _traveller_text("completed_tg", data)
+        stars = {"inline_keyboard": [[{"text": f"{n}⭐", "callback_data": f"rv:{data['ref']}:{n}"} for n in range(1, 6)]]}
+        return telegram_send(data["chat"], f"{subject}\n\n{body}", stars)
+    subject, body = _traveller_text(kind, data)
+    telegram_send(data["chat"], f"{subject}\n\n{body}")
 
 
 def _tell_about_booking(data):

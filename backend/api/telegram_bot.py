@@ -180,7 +180,7 @@ class Bot:
                 self.send(chat, tx("team_note", user.lang or "en"))
             return self.choose_language(chat)
         lang = user.lang
-        if user.state == "asking" or user.state in BOOK_STATES:
+        if user.state in ("asking", "review") or user.state in BOOK_STATES:
             return self.collect_request(user, message, body)
         if command == "/contact":
             return self.show_contact(chat, lang)
@@ -195,6 +195,8 @@ class Bot:
             user.save()
             self.send(chat, "👌", reply_markup={"remove_keyboard": True})
             return self.menu(chat, lang)
+        if user.state == "review":
+            return self.finish_review(user, body)
         contact = message.get("contact") or {}
         phone = contact.get("phone_number", "")
         if user.state in BOOK_STATES:
@@ -272,6 +274,44 @@ class Bot:
         self.suggest_social(chat, lang)
         self.menu(chat, lang)
 
+    # ---- rating a finished trip ----------------------------------------------------
+    def start_review(self, user, data):
+        """The traveller tapped a star under the "thank you for travelling" message: `rv:<reference>:<stars>`."""
+        chat, lang = user.chat_id, user.lang
+        try:
+            _, reference, stars = data.split(":")
+            stars = int(stars)
+        except ValueError:
+            return self.menu(chat, lang)
+        booking = models.BookingRequest.objects.filter(reference=reference, telegram_chat_id=chat, status="completed").first()
+        if not booking or not 1 <= stars <= 5:
+            return self.menu(chat, lang)
+        if models.Review.objects.filter(reference=reference).exists():
+            return self.send(chat, tx("review_already", lang), rows=[self.back_row(lang)])
+        user.state, user.state_data = "review", f"{reference}|{stars}"
+        user.save()
+        keyboard = {"keyboard": [[{"text": tx("review_skip", lang)}]], "resize_keyboard": True, "one_time_keyboard": True}
+        self.send(chat, tx("review_ask", lang, stars="⭐" * stars), reply_markup=keyboard)
+
+    def finish_review(self, user, body):
+        chat, lang = user.chat_id, user.lang
+        reference, stars = user.state_data.split("|")
+        user.state = user.state_data = ""
+        user.save()
+        booking = models.BookingRequest.objects.filter(reference=reference, telegram_chat_id=chat, status="completed").first()
+        text = body.strip()
+        if booking and text and text != tx("review_skip", lang) and not models.Review.objects.filter(reference=reference).exists():
+            review = models.Review.objects.create(
+                tour_slug=booking.service_slug, tour_title=booking.service_title, name=user.first_name or user.username or "Traveller", rating=int(stars),
+                text=text[:2000], email=booking.email, reference=reference, verified=True, status="pending", lang=lang)
+            notifications.review_received(review)  # the team is told; the review is published after a quick check
+            self.send(chat, tx("review_done", lang), reply_markup={"remove_keyboard": True})
+        else:
+            self.send(chat, "👌", reply_markup={"remove_keyboard": True})
+        rows = social_rows()
+        self.send(chat, tx("social_follow", lang) + "\n\n" + tx("come_again", lang), rows=rows or None)
+        self.menu(chat, lang)
+
     def suggest_social(self, chat, lang):
         rows = social_rows()
         if rows:
@@ -322,6 +362,8 @@ class Bot:
             return self.show_policy(chat, lang)
         if data == "contact":
             return self.show_contact(chat, lang)
+        if data.startswith("rv:"):
+            return self.start_review(user, data)
         if data == "mine":
             return self.show_bookings(chat, lang)
         if data.startswith("b:"):

@@ -91,6 +91,7 @@ function ReviewForm({ tour }) {
         <p className="mt-2">{t('We publish reviews after a quick check. Reviews from travellers with a matching booking reference get a “Verified traveller” mark.')}</p>
         <p className="mt-4 font-medium text-navy">{t('Follow us on social networks for more photos, videos and travel stories from Uzbekistan:')}</p>
         <Socials settings={settings} className="mt-2" />
+        <p className="mt-4 font-medium text-navy">{t('We look forward to welcoming you again!')}</p>
       </Success>
     )
   }

@@ -221,3 +221,10 @@ The bot (`@alitraveluzbot`) does two jobs: it alerts the team (see Notifications
   and a phone number, then creates a normal booking request (visible in Admin → Bookings). When the team confirms, cancels or
   completes it, the traveller is told in the same Telegram chat. *My bookings* lists their requests.
 - `python manage.py telegram_setup` describes the bot and shows whether the team account is connected.
+
+### Rating a finished trip in Telegram
+
+When the team marks a bot booking **completed**, the traveller gets a thank-you message in the chat with five star buttons. A tap on the
+stars asks for a short comment (or *Skip*); the comment is saved as a **verified review awaiting approval** (Admin → Reviews) and the team
+is alerted. The bot then thanks the traveller, suggests following ALI TRAVEL on Instagram, YouTube, Telegram and Facebook, and says it looks
+forward to welcoming them again. A trip can be reviewed once, and only from the chat that booked it.
