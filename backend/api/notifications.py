@@ -130,6 +130,18 @@ def _template(kind, lang):
     return texts.get(lang) or texts["en"]
 
 
+THANKS = {
+    "en": ("Thank you for your review — ALI TRAVEL",
+           "Hello {name},\n\nThank you for sharing your experience of “{tour}”! We read every review, and yours will help other travellers choose with confidence. It will appear on the website after a quick check.\n\n"
+           "If you enjoyed travelling with us, follow us for more photos, videos and travel stories from Uzbekistan:\n{links}\n\nSee you on the Silk Road,\nALI TRAVEL"),
+    "uz": ("Sharhingiz uchun rahmat — ALI TRAVEL",
+           "Assalomu alaykum, {name}!\n\n“{tour}” bo'yicha tajribangizni ulashganingiz uchun rahmat! Biz har bir sharhni o'qiymiz, sizniki esa boshqa sayyohlarga ishonch bilan tanlashga yordam beradi. U qisqa tekshiruvdan so'ng saytda ko'rinadi.\n\n"
+           "Biz bilan sayohat yoqqan bo'lsa, O'zbekistondan ko'proq surat, video va sayohat hikoyalari uchun bizni kuzatib boring:\n{links}\n\nIpak yo'lida ko'rishguncha,\nALI TRAVEL"),
+    "ru": ("Спасибо за ваш отзыв — ALI TRAVEL",
+           "Здравствуйте, {name}!\n\nСпасибо, что поделились впечатлениями о «{tour}»! Мы читаем каждый отзыв, и ваш поможет другим путешественникам выбирать с уверенностью. Он появится на сайте после короткой проверки.\n\n"
+           "Если вам понравилось путешествовать с нами, подписывайтесь — больше фото, видео и историй об Узбекистане:\n{links}\n\nДо встречи на Шёлковом пути,\nALI TRAVEL"),
+}
+
 WHEN = {"en": " on {d}", "uz": " ({d} sanasi)", "ru": " на {d}"}
 
 
@@ -213,7 +225,25 @@ def message_received(message):
     _background(_tell_the_team, f"New message from {message.full_name}", text, None if synthetic else message.email)
 
 
+def _thank_reviewer(data):
+    subject, body = THANKS.get(data["lang"]) or THANKS["en"]
+    _send_email(subject, body.format(name=data["name"], tour=data["tour"], links=data["links"]), [data["email"]])
+
+
+def _social_links():
+    """The company's social networks from Contact & settings, one per line."""
+    from .models import SiteContent
+    content = SiteContent.objects.filter(pk=1).first()
+    if not content:
+        return settings.SITE_URL
+    pairs = (("Instagram", content.instagram_url), ("YouTube", content.youtube_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url))
+    return "\n".join(f"{label}: {url}" for label, url in pairs if url.startswith("https://")) or settings.SITE_URL
+
+
 def review_received(review):
     text = (f"{'★' * review.rating} {review.name}{', ' + review.country if review.country else ''}\nTour: {review.tour_title or review.tour_slug}\n"
             f"{'Verified traveller' if review.verified else 'Not verified'}\n\n{review.text[:1500]}\n\nPublish it: {settings.SITE_URL}/admin/reviews")
     _background(_tell_the_team, "New review waiting for your approval", text)
+    if review.email and not review.email.endswith(".invalid"):  # thank the reviewer at once and suggest following us
+        _background(_thank_reviewer, {"name": review.name, "email": review.email, "tour": review.tour_title or review.tour_slug,
+                                      "lang": review.lang or "en", "links": _social_links()})

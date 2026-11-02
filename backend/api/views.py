@@ -434,5 +434,5 @@ class ReviewViewSet(viewsets.ModelViewSet):
         tour = models.Tour.objects.filter(slug=data["tour_slug"]).first()
         verified = bool(data.get("reference") and data.get("email") and models.BookingRequest.objects.filter(
             reference__iexact=data["reference"].strip(), email__iexact=data["email"].strip(), status__in=["confirmed", "completed"]).exists())
-        review = serializer.save(tour_title=tour.title if tour else "", verified=verified, status="pending")
+        review = serializer.save(tour_title=tour.title if tour else "", verified=verified, status="pending", lang=(self.request.headers.get("X-Lang") or "en")[:5])
         notifications.review_received(review)

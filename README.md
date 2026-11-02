@@ -128,10 +128,11 @@ has edited are never overwritten. Photos are linked from Wikimedia Commons and t
 tours are sample prices — change them in Tours & packages. Place texts are written in English, Uzbek and Russian; French, German and
 Spanish show the English text until translated in the admin panel. The three sample hotels of the new regions are placeholders.
 
-## Hands-on classes, reviews and booking confidence
+## Hands-on food experiences, reviews and booking confidence
 
-- **Samarkand classes** (Tours with category *Food*, type *Hands-on class*): Non Bread Baking Class, Plov Masterclass and Plov & Non
-  Masterclass, each with a step-by-step plan; guests take their bread and plov home. Created by `manage.py seed --extras`. Prices
+- **Samarkand food experiences** (Tours with category *Food*, type *Hands-on experience*): *Bake & Taste Samarkand Non*, *Cook & Taste
+  Samarkand Plov* and *Samarkand Non & Plov Experience*, each with a step-by-step plan; guests shape the food, taste it at the dastarkhan
+  and take the rest home. Created by `manage.py seed --extras`. Prices
   ($35 / $65 / $89) are sample prices; photos come from Wikimedia Commons. They also appear in the "Hands-on experiences" section of the
   home page.
 - **Reviews:** every priced tour page has a review form. Nothing is shown until an admin publishes it in **Admin → Reviews**.

@@ -293,7 +293,9 @@ class Command(BaseCommand):
         """Create the hands-on food classes of Samarkand (non baking, plov cooking, both). Existing records are left alone."""
         created = 0
         for e in seed_experiences.EXPERIENCES:
-            if models.Tour.objects.filter(slug=e["slug"]).exists():
+            existing = models.Tour.objects.filter(slug=e["slug"]).first()
+            if existing:  # created by an earlier version: update the wording unless an admin changed it
+                self.refresh(existing, seed_experiences.refresh_changes(existing, e))
                 continue
             models.Tour.objects.create(
                 slug=e["slug"], title=e["title"], destination_slug="samarkand", destination_name="Samarkand", category="Food",

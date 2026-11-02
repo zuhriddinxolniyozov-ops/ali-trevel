@@ -372,6 +372,7 @@ class Review(models.Model):
     text = models.TextField(max_length=2000)
     email = models.EmailField(blank=True)  # never shown; only used to verify the booking
     reference = models.CharField(max_length=20, blank=True)  # booking reference, never shown
+    lang = models.CharField(max_length=5, blank=True)  # the language the reviewer was reading, for the thank-you e-mail
     verified = models.BooleanField(default=False)
     status = models.CharField(max_length=10, choices=STATUS, default="pending")
     created = models.DateTimeField(auto_now_add=True)

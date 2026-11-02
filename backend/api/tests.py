@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework.test import APIClient, APITestCase
 
 from . import models
@@ -167,6 +168,7 @@ class PromotionAndLegalTests(APITestCase):
 
 class ReviewTests(APITestCase):
     def setUp(self):
+        cache.clear()  # the rate limits are remembered between tests
         self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
         self.tour = models.Tour.objects.create(
             slug="t", title="Tour T", destination_name="Samarkand", category="Food", duration_label="1 day", group_type="Small group",
@@ -262,6 +264,7 @@ class NotificationTests(APITestCase):
             "phone": "+49 151 2345678", "travel_date": "2027-05-01", "guests": 3, "estimated_total_usd": "1200.00"}
 
     def setUp(self):
+        cache.clear()
         self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
 
     def booking(self, lang="en", **extra):
@@ -634,3 +637,36 @@ class TelegramSocialTests(APITestCase):
         texts = self.api.texts()
         self.assertTrue(any("received for" in t for t in texts))
         self.assertTrue(any("Follow ALI TRAVEL" in t for t in texts))
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="", SITE_URL="https://alitravel.example")
+class ReviewThanksTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        models.Tour.objects.create(slug="t", title="Tour T", destination_name="X", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=10)
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"instagram_url": "https://www.instagram.com/al1_travel1", "youtube_url": "https://youtube.com/@alitravel_z", "telegram_url": "", "facebook_url": "not-a-link"})
+
+    def review(self, lang="en", **extra):
+        body = {"tour_slug": "t", "name": "Anna", "rating": 5, "text": "Wonderful.", "email": "anna@example.com"}
+        return self.client.post("/api/reviews/", dict(body, **extra), format="json", HTTP_X_LANG=lang)
+
+    def test_a_reviewer_with_an_email_is_thanked_and_invited_to_follow_us(self):
+        self.assertEqual(self.review().status_code, 201)
+        thanks = [m for m in mail.outbox if m.to == ["anna@example.com"]]
+        self.assertEqual(len(thanks), 1)
+        self.assertIn("Thank you for your review", thanks[0].subject)
+        self.assertIn("Instagram: https://www.instagram.com/al1_travel1", thanks[0].body)
+        self.assertIn("YouTube: https://youtube.com/@alitravel_z", thanks[0].body)
+        self.assertNotIn("not-a-link", thanks[0].body)  # only real https links are offered
+        self.assertNotIn("Telegram:", thanks[0].body)  # an empty link is left out
+
+    def test_the_thanks_follows_the_language_of_the_site(self):
+        self.review(lang="uz")
+        self.assertIn("Sharhingiz uchun rahmat", [m for m in mail.outbox if m.to == ["anna@example.com"]][0].subject)
+        mail.outbox.clear()
+        self.review(lang="ru")
+        self.assertIn("Спасибо за ваш отзыв", [m for m in mail.outbox if m.to == ["anna@example.com"]][0].subject)
+
+    def test_nobody_is_mailed_when_no_email_was_left_but_the_team_is_told(self):
+        self.review(email="")
+        self.assertEqual([m.to for m in mail.outbox], [["team@example.com"]])

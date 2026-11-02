@@ -110,7 +110,7 @@ export function TourCard({ tour: t, delay = 0 }) {
           <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{t.summary}</p>
           {Number(t.price_from_usd) > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-navy">
-              {t.tour_type === 'workshop' && <span className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1"><ChefHat className="h-3 w-3" />{tr('Hands-on class')}</span>}
+              {t.tour_type === 'workshop' && <span className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1"><ChefHat className="h-3 w-3" />{tr('Hands-on experience')}</span>}
               <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CalendarX2 className="h-3 w-3 text-turquoise-deep" />{tr('Free cancellation')}</span>
               {t.pickup_included && <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CarFront className="h-3 w-3 text-turquoise-deep" />{tr('Pickup included')}</span>}
             </div>

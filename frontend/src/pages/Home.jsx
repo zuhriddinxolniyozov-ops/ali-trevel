@@ -102,7 +102,7 @@ export default function Home() {
 
       {classes.data.length > 0 && (
         <section className="shell py-20 lg:py-28">
-          <SectionHeading align="between" eyebrow="Hands-on experiences" title="Cook it, bake it, take it home" description="Join a local cook in Samarkand: shape non in a clay tandir, cook plov in a kazan and carry your own food home."
+          <SectionHeading align="between" eyebrow="Hands-on experiences" title="Bake it, taste it, take it home" description="Taste Samarkand with your own hands: shape non in a clay tandir, cook plov in a kazan, sit down together at the dastarkhan and carry the rest home."
             action={<Link to="/tours" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All tours')}<ArrowRight className="h-4 w-4" /></Link>} />
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{classes.data.slice(0, 3).map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 80} />)}</div>
         </section>

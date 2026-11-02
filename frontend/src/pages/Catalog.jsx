@@ -119,7 +119,7 @@ export function Tours() {
   )
 }
 
-const TOUR_TYPES = { workshop: 'Hands-on class', car: 'Car tour', walking: 'Walking tour', mixed: 'Car + walking', train: 'Train tour' }
+const TOUR_TYPES = { workshop: 'Hands-on experience', car: 'Car tour', walking: 'Walking tour', mixed: 'Car + walking', train: 'Train tour' }
 
 function Fact({ label, children }) {
   return (
