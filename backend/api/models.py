@@ -69,6 +69,7 @@ class SiteContent(models.Model):
     facebook_url = models.URLField(blank=True)
     youtube_url = models.URLField(blank=True)
     group_pricing_tiers = models.JSONField(default=default_group_tiers, blank=True)
+    analytics_id = models.CharField(max_length=40, blank=True)  # Google Analytics 4 measurement id such as G-XXXXXXXXXX
 
 
 class Destination(Catalogued):
@@ -213,6 +214,7 @@ class BookingRequest(models.Model):
     discount_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=12, choices=STATUS, default="pending")
     admin_notes = models.TextField(blank=True)
+    lang = models.CharField(max_length=5, blank=True)  # the language the traveller was reading, for e-mails
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:

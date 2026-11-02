@@ -1,0 +1,7 @@
+Django>=6.1,<6.2
+djangorestframework>=3.18,<3.19
+django-cors-headers>=4.9,<5
+
+# Only needed on a live server:
+gunicorn>=23
+# psycopg[binary]>=3.2    # uncomment when you switch to PostgreSQL (set DB_NAME in .env)

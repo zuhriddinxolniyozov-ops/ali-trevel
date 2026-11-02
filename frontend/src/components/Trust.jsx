@@ -4,7 +4,7 @@ import { BadgeCheck, CalendarX2, ChevronDown, MessageCircle, ShieldCheck, Star, 
 import { api } from '../api'
 import { useFetch, useSettings } from '../hooks'
 import { useT } from '../i18n'
-import { Field, Spinner, Success } from './ui'
+import { Field, Honeypot, Spinner, Success } from './ui'
 
 /* Reasons to book, taken from the tour itself and from the real policies: nothing here promises more than the Terms and the Cancellation Policy. */
 export function TrustPanel({ tour }) {
@@ -72,7 +72,7 @@ export function ReviewCard({ review: r }) {
 
 function ReviewForm({ tour }) {
   const t = useT()
-  const [f, setF] = useState({ name: '', country: '', rating: 5, text: '', email: '', reference: '' })
+  const [f, setF] = useState({ name: '', country: '', rating: 5, text: '', email: '', reference: '', website: '' })
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
@@ -84,7 +84,8 @@ function ReviewForm({ tour }) {
   }
   if (state === 'done') return <Success title={t('Thank you for your review')}>{t('We publish reviews after a quick check. Reviews from travellers with a matching booking reference get a “Verified traveller” mark.')}</Success>
   return (
-    <form onSubmit={submit} className="mt-6 space-y-4 rounded-sm border border-navy/10 bg-white p-5">
+    <form onSubmit={submit} className="relative mt-6 space-y-4 rounded-sm border border-navy/10 bg-white p-5">
+      <Honeypot value={f.website} onChange={set('website')} />
       <p className="font-medium text-navy">{t('Share your experience')}</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Your name"><input required className="input" value={f.name} onChange={set('name')} /></Field>

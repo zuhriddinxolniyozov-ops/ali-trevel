@@ -171,6 +171,7 @@ export function Enquiries() {
 const SETTING_FIELDS = [
   ['email', 'Email'], ['phone_primary', 'Primary phone'], ['phone_secondary', 'Secondary phone'], ['address', 'Address'], ['hours', 'Opening hours'],
   ['instagram_url', 'Instagram URL'], ['telegram_url', 'Telegram URL'], ['facebook_url', 'Facebook URL'], ['youtube_url', 'YouTube URL'],
+  ['analytics_id', 'Google Analytics ID (optional)'],
 ]
 
 export function Settings() {

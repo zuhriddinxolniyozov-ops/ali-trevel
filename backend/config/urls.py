@@ -19,9 +19,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from api import seo
+
 urlpatterns = [
     path('api/', include('api.urls')),
-    path('admin/', admin.site.urls),
+    path('sitemap.xml', seo.sitemap),
+    path('robots.txt', seo.robots),
+    path('django-admin/', admin.site.urls),  # the website's own admin console lives at /admin
 ]
 
 if settings.DEBUG:

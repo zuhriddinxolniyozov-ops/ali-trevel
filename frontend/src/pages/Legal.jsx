@@ -7,6 +7,8 @@ import LegalText, { headingId, parseLegal } from '../components/LegalText'
 const PAGES = [['privacy', 'Privacy Policy'], ['terms', 'Terms and Conditions'], ['cancellation', 'Cancellation Policy']]
 
 /** Privacy policy, terms or cancellation policy, loaded from the admin-editable legal pages. */
+import Seo from '../components/Seo'
+
 export default function Legal() {
   const { t, lang } = useI18n()
   const { page } = useParams()
@@ -18,6 +20,7 @@ export default function Legal() {
   const updated = new Date(`${data.updated}T12:00:00`).toLocaleDateString(lang === 'uz' ? 'uz-UZ' : lang, { year: 'numeric', month: 'long', day: 'numeric' })
   return (
     <div className="shell py-14 lg:py-20">
+      <Seo title={data.title} />
       <header className="max-w-3xl animate-rise-in">
         <p className="eyebrow">{t('Legal')}</p>
         <h1 className="display-lg mt-3 text-navy">{data.title}</h1>

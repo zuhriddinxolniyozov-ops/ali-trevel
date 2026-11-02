@@ -157,6 +157,11 @@ export function EmptyState({ title = 'Nothing here yet', body }) {
   return <div className="rounded-sm border border-dashed border-navy/20 bg-sand-soft/40 p-10 text-center"><p className="font-heading text-[24px]">{t(title)}</p>{body && <p className="mt-2 text-ink">{t(body)}</p>}</div>
 }
 
+/** A hidden text box that people never see; robots fill it in, and the server then ignores the message. */
+export function Honeypot({ value, onChange }) {
+  return <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={value} onChange={onChange} className="absolute -left-[9999px] h-0 w-0 opacity-0" />
+}
+
 export function Spinner() { return <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> }
 
 export function Success({ title, children }) {

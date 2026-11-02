@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { api } from '../api'
 import { useSettings } from '../hooks'
 import { useT } from '../i18n'
-import { EMAIL_RE, Field, PageHero, Spinner, Success } from '../components/ui'
+import { EMAIL_RE, Field, Honeypot, PageHero, Spinner, Success } from '../components/ui'
+import Seo from '../components/Seo'
 import { Phones, Socials } from '../components/Layout'
 import { IMAGES } from '../data'
 
@@ -28,7 +29,7 @@ export function About() {
 export function Contact() {
   const t = useT()
   const { settings } = useSettings()
-  const [f, setF] = useState({ full_name: '', email: '', phone: '', subject: '', message: '' })
+  const [f, setF] = useState({ full_name: '', email: '', phone: '', subject: '', message: '', website: '' })
   const [errors, setErrors] = useState({})
   const [state, setState] = useState('idle')
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
@@ -45,6 +46,7 @@ export function Contact() {
   }
   return (
     <>
+      <Seo title={t('Contact')} />
       <PageHero eyebrow="Contact" title="Talk to a person" description="Questions, ideas, or a trip half-planned — write to us and we will reply by email." image={IMAGES.tashkent} />
       <div className="shell grid gap-12 py-16 lg:grid-cols-[1fr_1.3fr] lg:py-24">
         <div><Phones settings={settings} />{settings.email && <p className="mt-4"><a href={`mailto:${settings.email}`} className="break-all text-turquoise-deep">{settings.email}</a></p>}
@@ -52,6 +54,7 @@ export function Contact() {
           <Socials settings={settings} className="mt-6" /></div>
         {state === 'done' ? <Success title="Message received">{t('Thank you — we will reply by email soon.')}</Success> : (
           <form onSubmit={submit} noValidate className="space-y-4 rounded-sm border border-navy/12 bg-sand-soft/40 p-6">
+            <Honeypot value={f.website} onChange={set('website')} />
             <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>

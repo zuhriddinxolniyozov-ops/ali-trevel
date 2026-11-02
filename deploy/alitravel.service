@@ -1,0 +1,15 @@
+# systemd unit that keeps the Django API running: copy to /etc/systemd/system/alitravel.service, then
+#   sudo systemctl daemon-reload && sudo systemctl enable --now alitravel
+# Adjust the user and paths to match your server.
+[Unit]
+Description=ALI TRAVEL API (gunicorn)
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/alitravel/backend
+ExecStart=/var/www/alitravel/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 60
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

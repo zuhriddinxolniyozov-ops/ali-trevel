@@ -8,14 +8,26 @@ from django.utils.text import slugify
 from django.db.models import Count, Sum
 from rest_framework import permissions, status, viewsets
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action, api_view, parser_classes, permission_classes
+from rest_framework.decorators import action, api_view, parser_classes, permission_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
+from . import notifications
+
 from . import models, serializers as s
 
 User = get_user_model()
+
+
+class BookingThrottle(AnonRateThrottle):
+    scope = "booking"
+    rate = "40/hour"
+
+
+class ContactThrottle(AnonRateThrottle):
+    scope = "contact"
+    rate = "20/hour"
 
 
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -114,10 +126,14 @@ def site_content(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([ContactThrottle])
 def contact(request):
+    if request.data.get("website"):  # a hidden field only robots fill in
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
     ser = s.ContactMessageSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    ser.save()
+    message = ser.save()
+    notifications.message_received(message)
     return Response(ser.data, status=status.HTTP_201_CREATED)
 
 
@@ -133,12 +149,17 @@ def newsletter(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([BookingThrottle])
 def submit_booking(request):
+    if request.data.get("website"):  # a hidden field only robots fill in
+        return Response({"reference": "", "status": "pending"}, status=201)
     ser = s.BookingSubmitSerializer(data=request.data)
     if not ser.is_valid():
         return Response({"error": "Please check the form fields.", "fields": ser.errors}, status=400)
     user = request.user if request.user.is_authenticated else None
-    booking = ser.save(user=user)
+    lang = (request.headers.get("X-Lang") or "en")[:5]
+    booking = ser.save(user=user, lang=lang)
+    notifications.booking_created(booking)
     return Response({"reference": booking.reference, "status": booking.status}, status=201)
 
 
@@ -162,15 +183,19 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": "This request can no longer be cancelled."}, status=400)
         booking.status = "cancelled"
         booking.save(update_fields=["status"])
+        notifications.booking_cancelled_by_traveller(booking)
         return Response(s.BookingSerializer(booking).data)
 
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAdminUser])
     def update_status(self, request, pk=None):
         booking = self.get_object()
+        before = booking.status
         for field in ("status", "admin_notes"):
             if field in request.data:
                 setattr(booking, field, request.data[field])
         booking.save()
+        if booking.status != before:
+            notifications.booking_status_changed(booking)
         return Response(s.BookingSerializer(booking).data)
 
 
@@ -399,9 +424,15 @@ class ReviewViewSet(viewsets.ModelViewSet):
         tour = self.request.query_params.get("tour_slug")
         return qs.filter(tour_slug=tour) if tour else qs
 
+    def create(self, request, *args, **kwargs):
+        if request.data.get("website"):  # a hidden field only robots fill in
+            return Response({"ok": True}, status=201)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         data = serializer.validated_data
         tour = models.Tour.objects.filter(slug=data["tour_slug"]).first()
         verified = bool(data.get("reference") and data.get("email") and models.BookingRequest.objects.filter(
             reference__iexact=data["reference"].strip(), email__iexact=data["email"].strip(), status__in=["confirmed", "completed"]).exists())
-        serializer.save(tour_title=tour.title if tour else "", verified=verified, status="pending")
+        review = serializer.save(tour_title=tour.title if tour else "", verified=verified, status="pending")
+        notifications.review_received(review)

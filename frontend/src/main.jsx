@@ -23,6 +23,7 @@ import Accounting from './admin/Accounting'
 import Promotions from './admin/Promotions'
 import Reviews from './admin/Reviews'
 import GroupPricing from './admin/GroupPricing'
+import Credits from './pages/Credits'
 import LegalAdmin from './admin/LegalAdmin'
 import PartnerDocs from './admin/PartnerDocs'
 
@@ -65,6 +66,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/legal/:page" element={<Legal />} />
+              <Route path="/credits" element={<Credits />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />

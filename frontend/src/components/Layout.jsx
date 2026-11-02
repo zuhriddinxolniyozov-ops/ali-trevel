@@ -5,6 +5,7 @@ import { useAuth, useFetch, useSettings } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
 import { WhatsAppButton } from './Trust'
 import { SelectionProvider } from './Selection'
+import Analytics from './Analytics'
 
 // lucide-react no longer ships brand icons, so these are simple inline glyphs.
 const glyph = (d) => (props) => (
@@ -192,7 +193,7 @@ function Header() {
 
 const EXPLORE = [['Destinations', '/destinations'], ['Tours & Experiences', '/tours'], ['Hotels', '/hotels'], ['Airport Transfers', '/transport'], ['Local Food', '/food']]
 const COMPANY = [['About Us', '/about'], ['Contact', '/contact'], ['Plan My Trip', '/plan'], ['Partner Registration', '/partners/register'], ['Partner Sign In', '/partners']]
-const LEGAL = [['Privacy Policy', '/legal/privacy'], ['Terms and Conditions', '/legal/terms'], ['Cancellation Policy', '/legal/cancellation']]
+const LEGAL = [['Privacy Policy', '/legal/privacy'], ['Terms and Conditions', '/legal/terms'], ['Cancellation Policy', '/legal/cancellation'], ['Photo credits', '/credits']]
 
 function FooterLinks({ title, items }) {
   const { t } = useI18n()
@@ -250,6 +251,7 @@ export default function Layout() {
       <main id="main-content" className="flex-1"><Outlet /></main>
       <Footer />
       <WhatsAppButton />
+      <Analytics />
     </div>
     </SelectionProvider>
   )

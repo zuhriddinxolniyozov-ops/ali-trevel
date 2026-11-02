@@ -12,6 +12,7 @@ import { IMAGES } from '../data'
 import { AddCard, EditButton, EditRecordBar } from '../edit/Add'
 import { useEdit } from '../edit/context'
 import { TourFaq, TourReviews, TrustPanel } from '../components/Trust'
+import Seo, { tourJsonLd } from '../components/Seo'
 
 function NotFound({ what }) {
   const t = useT()
@@ -49,10 +50,12 @@ function List({ items, title, negative = false }) {
 
 /* ---------- destinations ---------- */
 export function Destinations() {
+  const t = useT()
   const { data, loading } = useFetch('/destinations/', { list: true })
   return (
     <>
-      <PageHero eyebrow="Destinations" title="Where the Silk Road still feels alive" description="Six places to start, from the Registan to the Nurata desert." image={IMAGES.samarkand} />
+      <Seo title={t('Destinations')} description={t('From the Registan to the Aral Sea — pick a region and start exploring.')} />
+      <PageHero eyebrow="Destinations" title="Where the Silk Road still feels alive" description="From the Registan to the Aral Sea — pick a region and start exploring." image={IMAGES.samarkand} />
       <div className="shell py-16 lg:py-24"><div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? <Skeleton /> : <>{data.map((d, i) => <DestinationCard key={d.slug} destination={d} delay={i * 60} />)}<AddCard resource="destinations" label="Add a destination" /></>}</div></div>
     </>
@@ -104,6 +107,7 @@ export function Tours() {
   const shown = cat === 'All' ? data : data.filter((x) => x.category === cat)
   return (
     <>
+      <Seo title={t('Tours & Experiences')} description={t('Private and small-group tours led by local, licensed guides.')} />
       <PageHero eyebrow="Tours & Experiences" title="Journeys shaped around you" description="Private and small-group tours led by local, licensed guides." image={IMAGES.bukhara} />
       <div className="shell py-16 lg:py-24">
         <div className="mb-8 flex flex-wrap gap-2">{cats.map((c) => (
@@ -150,6 +154,7 @@ export function TourDetail() {
   const priceless = Number(tour.price_from_usd) <= 0
   return (
     <div data-edit-record={`tours:${tour.slug}`}>
+      <Seo title={tour.title} description={tour.summary} image={tour.image_url} jsonLd={priceless ? null : tourJsonLd(tour)} />
       <PageHero eyebrow={`${t(tour.category)} · ${tour.destination_name}`} title={tour.title} description={tour.summary} image={tour.image_url} />
       <EditRecordBar resource="tours" record={tour} label="Edit tour" />
       <div className="shell grid gap-12 py-16 lg:grid-cols-[1.5fr_1fr] lg:py-24">
@@ -238,6 +243,7 @@ export function Hotels() {
   const { data, loading } = useFetch('/hotels/', { list: true })
   return (
     <>
+      <Seo title={t('Hotels')} description={t('Courtyard guesthouses and city hotels we know personally.')} />
       <PageHero eyebrow="Hotels" title="Places to stay, chosen by locals" description="Courtyard guesthouses and city hotels we know personally." image={IMAGES.hotel} />
       <div className="shell py-16 lg:py-24"><div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? <Skeleton /> : <>{data.map((h) => (
@@ -261,6 +267,7 @@ export function HotelDetail() {
   if (error || !h) return <NotFound what="Hotel" />
   return (
     <div data-edit-record={`hotels:${h.slug}`}>
+      <Seo title={h.name} description={h.summary} image={h.image_url} />
       <PageHero eyebrow={`${h.destination_name} · ${'★'.repeat(h.stars)}`} title={h.name} description={h.summary} image={h.image_url} />
       <EditRecordBar resource="hotels" record={h} label="Edit hotel" />
       <div className="shell grid gap-12 py-16 lg:grid-cols-[1.5fr_1fr] lg:py-24">

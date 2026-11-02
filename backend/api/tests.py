@@ -250,3 +250,92 @@ class TargetedPromotionTests(APITestCase):
     def test_a_promotion_without_limits_still_covers_everything(self):
         models.Promotion.objects.create(title="All", percent=10, applies_to="all")
         self.assertEqual(self.percent("/api/tours/bukhara-city/"), 10)
+
+
+from django.core import mail
+from django.test import override_settings
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="")
+class NotificationTests(APITestCase):
+    body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Anna Berg", "email": "anna@example.com",
+            "phone": "+49 151 2345678", "travel_date": "2027-05-01", "guests": 3, "estimated_total_usd": "1200.00"}
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
+
+    def booking(self, lang="en", **extra):
+        return self.client.post("/api/bookings-submit/", dict(self.body, **extra), format="json", HTTP_X_LANG=lang)
+
+    def test_a_new_booking_tells_the_team_and_the_traveller(self):
+        response = self.booking()
+        self.assertEqual(response.status_code, 201)
+        to_team = [m for m in mail.outbox if m.to == ["team@example.com"]]
+        to_traveller = [m for m in mail.outbox if m.to == ["anna@example.com"]]
+        self.assertEqual((len(to_team), len(to_traveller)), (1, 1))
+        self.assertIn(response.json()["reference"], to_team[0].subject)
+        self.assertEqual(to_team[0].reply_to, ["anna@example.com"])
+        self.assertIn("Samarkand City Tour", to_traveller[0].body)
+        self.assertIn("2027-05-01", to_traveller[0].body)
+
+    def test_the_traveller_email_follows_the_language_of_the_site(self):
+        self.booking(lang="ru")
+        message = [m for m in mail.outbox if m.to == ["anna@example.com"]][0]
+        self.assertIn("Мы получили ваш запрос", message.subject)
+        self.assertIn("на 2027-05-01", message.body)
+        mail.outbox.clear()
+        self.booking(lang="fr")  # no French template: English is used
+        self.assertIn("We received your request", [m for m in mail.outbox if m.to == ["anna@example.com"]][0].subject)
+
+    def test_confirming_or_cancelling_emails_the_traveller_once(self):
+        ref = self.booking().json()["reference"]
+        booking = models.BookingRequest.objects.get(reference=ref)
+        mail.outbox.clear()
+        self.client.force_authenticate(self.admin)
+        url = f"/api/bookings/{booking.pk}/update_status/"
+        self.client.patch(url, {"status": "confirmed"}, format="json")
+        self.client.patch(url, {"status": "confirmed", "admin_notes": "called them"}, format="json")  # nothing changed: no second e-mail
+        self.assertEqual([m.subject for m in mail.outbox], [f"Your booking {ref} is confirmed — ALI TRAVEL"])
+        self.client.patch(url, {"status": "cancelled"}, format="json")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertNotIn("called them", mail.outbox[0].body)  # internal notes are never e-mailed
+
+    def test_a_traveller_cancelling_tells_the_team(self):
+        ref = self.booking().json()["reference"]
+        booking = models.BookingRequest.objects.get(reference=ref)
+        mail.outbox.clear()
+        self.client.force_authenticate(get_user_model().objects.create_user("anna@example.com", "anna@example.com", "x"))
+        self.assertEqual(self.client.post(f"/api/bookings/{booking.pk}/cancel/").status_code, 200)
+        self.assertEqual(sorted(tuple(m.to) for m in mail.outbox), [("anna@example.com",), ("team@example.com",)])
+
+    def test_messages_and_reviews_tell_the_team(self):
+        models.Tour.objects.create(slug="t", title="Tour T", destination_name="X", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=10)
+        self.client.post("/api/contact/", {"full_name": "Bo", "email": "bo@example.com", "message": "Hello"}, format="json")
+        self.client.post("/api/reviews/", {"tour_slug": "t", "name": "Bo", "rating": 5, "text": "Great"}, format="json")
+        self.assertEqual([m.to for m in mail.outbox], [["team@example.com"], ["team@example.com"]])
+
+    def test_a_broken_mail_server_never_breaks_a_booking(self):
+        from unittest import mock
+        with mock.patch("api.notifications.EmailMultiAlternatives.send", side_effect=OSError("smtp down")):
+            self.assertEqual(self.booking().status_code, 201)
+        self.assertEqual(models.BookingRequest.objects.count(), 1)
+
+    def test_robots_fill_a_hidden_field_and_nothing_is_saved(self):
+        self.assertEqual(self.booking(website="http://spam.example").status_code, 201)
+        self.assertEqual(self.client.post("/api/contact/", {"full_name": "x", "email": "x@x.com", "message": "m", "website": "spam"}, format="json").status_code, 201)
+        self.assertEqual((models.BookingRequest.objects.count(), models.ContactMessage.objects.count(), len(mail.outbox)), (0, 0, 0))
+
+
+class SeoTests(APITestCase):
+    def test_sitemap_lists_published_pages_only(self):
+        models.Tour.objects.create(slug="live", title="L", destination_name="X", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=10, status="published")
+        models.Tour.objects.create(slug="hidden", title="H", destination_name="X", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=10, status="draft")
+        xml = self.client.get("/sitemap.xml").content.decode()
+        self.assertIn("/tours/live</loc>", xml)
+        self.assertNotIn("/tours/hidden", xml)
+        self.assertIn("/legal/privacy</loc>", xml)
+
+    def test_robots_keeps_the_admin_out_and_points_to_the_sitemap(self):
+        text = self.client.get("/robots.txt").content.decode()
+        self.assertIn("Disallow: /admin", text)
+        self.assertIn("/sitemap.xml", text)

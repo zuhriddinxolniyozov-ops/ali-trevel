@@ -157,3 +157,38 @@ Spanish show the English text until translated in the admin panel. The three sam
 In **Admin → Promotions** a campaign can be limited to chosen destinations (for example only Samarkand), to chosen tours (for example
 only the plov class), or both. With nothing ticked it covers every price of the chosen kind. Hotels follow their destination;
 transport options have no destination, so a limited campaign does not discount them.
+
+## Notifications (e-mail and Telegram)
+
+- The team is told about every **new booking request, contact message and review** (e-mail to `NOTIFY_EMAILS`, and Telegram when a bot is set up).
+- The **traveller** gets an e-mail when the request arrives, and again when the team confirms, cancels or completes it (the last one
+  asks for a review). Mails follow the language the traveller was reading (English, Uzbek, Russian; other languages receive English).
+  Internal admin notes are never e-mailed.
+- Without `EMAIL_HOST` in `backend/.env`, e-mails are printed in the server console instead of being sent. Sending never delays or
+  breaks a booking: it runs in the background and failures are only logged.
+- Telegram: create a bot with @BotFather, put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` (see `.env.example`).
+
+## Going live (a Linux server)
+
+1. Copy the project to the server, create a virtualenv and `pip install -r backend/requirements.txt`.
+2. Copy `backend/.env.example` to `backend/.env` and fill it in: `DEBUG=false`, a private `SECRET_KEY`, `ALLOWED_HOSTS`, `SITE_URL`,
+   e-mail settings. The server refuses to start with `DEBUG=false` and the development secret key.
+3. `python manage.py migrate`, then `python manage.py seed --extras` to load the sample catalogue, and `python manage.py changepassword alitravel004@gmail.com` (the sample admin account).
+   **Change the sample admin password** before going live; create more admins with `createsuperuser`.
+4. `cd frontend && npm install && npm run build`; point nginx at `frontend/dist` (see `deploy/nginx.conf`, which also proxies `/api`,
+   `/sitemap.xml` and `/robots.txt` to Django and serves `/media`). Get a free HTTPS certificate with certbot.
+5. Run the API with gunicorn under systemd (`deploy/alitravel.service`).
+6. Nightly backup: `python manage.py backup` (SQLite copy or JSON export, plus uploaded photos, into `backend/backups/`, newest 14 kept).
+   Add it to cron, e.g. `0 3 * * * cd /var/www/alitravel/backend && ../venv/bin/python manage.py backup`.
+
+## Search engines, sharing and analytics
+
+- Each page sets its own title, description, share image and canonical link; priced tours also publish structured data (price) for
+  search results. `/sitemap.xml` lists every published page; `/robots.txt` keeps the admin out. The site is a single-page app, so
+  search engines that do not run JavaScript only see the basic page; pre-rendering can be added later.
+- **Photo credits** page (`/credits`, linked in the footer) links every Wikimedia Commons photo to its file page, which names the
+  photographer and licence. Replacing photos with your own (Site editor → click a photo) removes the need for credits.
+- **Google Analytics** is optional: enter a measurement ID (`G-…`) in *Contact & settings*. A cookie banner appears and nothing is
+  loaded until the visitor accepts.
+- **Spam protection:** forms contain a hidden field that robots fill in (such messages are silently dropped), and bookings, messages
+  and reviews are rate-limited per visitor.

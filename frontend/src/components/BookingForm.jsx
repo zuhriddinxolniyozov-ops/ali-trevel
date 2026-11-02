@@ -4,7 +4,7 @@ import { discounted, exactMoney, useAuth, useSettings } from '../hooks'
 import { groupPercent } from '../groupPricing'
 import { useT } from '../i18n'
 import GroupPrice from './GroupPrice'
-import { EMAIL_RE, Field, PHONE_RE, Photo, Spinner, Success } from './ui'
+import { EMAIL_RE, Field, Honeypot, PHONE_RE, Photo, Spinner, Success } from './ui'
 
 const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new Date(from)) / 864e5) : 0)
 
@@ -24,7 +24,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
   const tiers = settings.group_pricing_tiers
   const grouped = (groupPriced || !!priceFor) && !isStay
   const perPersonAt = (g) => (priceFor ? priceFor(g, tiers) : estimatedTotal * (groupPriced ? groupPercent(tiers, g) / 100 : 1))
-  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights })
+  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights, website: '' })
   const [errors, setErrors] = useState({})
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')
@@ -65,7 +65,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
         service_type: serviceType, service_slug: serviceSlug, service_title: serviceTitle,
         full_name: f.full_name.trim(), email: f.email.trim(), phone: f.phone.trim(),
         travel_date: f.travel_date, end_date: f.end_date || null, guests: Number(f.guests) || 1,
-        special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, ...extra,
+        website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, ...extra,
         details_summary: [extra.details_summary, ...lines].filter(Boolean).join('\n\n'),
       })
       setReference(res.reference); setSent({ guests: Number(f.guests) || 1, perPerson: perPersonAt(Number(f.guests) || 1), total }); setState('done')
@@ -85,7 +85,8 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     <form onSubmit={submit} noValidate className="rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t(isStay ? 'Request a stay' : 'Send a booking request')}</p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink">{t(intro || 'No payment is taken. Our team confirms availability and sends a written confirmation.')}</p>
-      <div className="mt-4 space-y-3">
+      <div className="relative mt-4 space-y-3">
+        <Honeypot value={f.website} onChange={set('website')} />
         <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
         <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
         <Field label="Phone / WhatsApp" error={errors.phone}><input type="tel" className="input" placeholder="+998 90 123 45 67" value={f.phone} onChange={set('phone')} /></Field>
