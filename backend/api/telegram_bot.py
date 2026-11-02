@@ -89,6 +89,17 @@ def per_person(tour, guests, lang, cache):
     return round(price, 2)
 
 
+def social_rows(per_row=2):
+    """Link buttons to the company's Instagram, YouTube, Telegram and Facebook (from Contact & settings); only real https links."""
+    content = models.SiteContent.objects.filter(pk=1).first()
+    if not content:
+        return []
+    links = [(label, url) for label, url in (("📸 Instagram", content.instagram_url), ("▶️ YouTube", content.youtube_url),
+                                             ("✈️ Telegram", content.telegram_url), ("👍 Facebook", content.facebook_url)) if url.startswith("https://")]
+    buttons = [{"text": label, "url": url} for label, url in links]
+    return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
+
+
 def is_team(user):
     return bool(user.username) and user.username.lower() in {n.lstrip("@").lower() for n in settings.TELEGRAM_TEAM_USERNAMES}
 
@@ -258,7 +269,13 @@ class Bot:
         user.state = user.state_data = ""
         user.save()
         self.send(chat, tx("book_done", lang, ref=booking.reference, title=esc(loc(tour, "title", lang))), reply_markup={"remove_keyboard": True})
+        self.suggest_social(chat, lang)
         self.menu(chat, lang)
+
+    def suggest_social(self, chat, lang):
+        rows = social_rows()
+        if rows:
+            self.send(chat, tx("social_follow", lang), rows=rows)
 
     def show_bookings(self, chat, lang):
         bookings = models.BookingRequest.objects.filter(telegram_chat_id=chat).order_by("-created")[:10]
@@ -372,6 +389,7 @@ class Bot:
             rows.insert(0, [{"text": tx("open_site", lang), "url": site("/tours/" + tour.slug)}])
         back = [button(tx("menu_tours", lang), "classes" if tour.tour_type == "workshop" else "tours")]
         self.send(chat, "\n".join(lines), rows=rows + [back, self.back_row(lang)])
+        self.suggest_social(chat, lang)
 
     def show_prices(self, chat, lang):
         content = models.SiteContent.objects.filter(pk=1).first()

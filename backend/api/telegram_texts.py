@@ -176,3 +176,13 @@ T.update({
         "de": "✅ Dieses Konto ist als <b>ALI-TRAVEL-Team</b> registriert: neue Buchungen und Nachrichten von der Website und aus diesem Bot kommen hier an.",
         "es": "✅ Esta cuenta está registrada como <b>equipo de ALI TRAVEL</b>: aquí llegarán las nuevas reservas y mensajes del sitio y de este bot."},
 })
+
+T.update({
+    "social_follow": {
+        "en": "📲 <b>Follow ALI TRAVEL</b> for photos, videos and stories from the Silk Road, and see how our guests travel:",
+        "uz": "📲 <b>ALI TRAVEL</b> ni kuzatib boring: Ipak yoʻlidan suratlar, videolar va hikoyalar, mehmonlarimiz qanday sayohat qilishini koʻring:",
+        "ru": "📲 <b>Подписывайтесь на ALI TRAVEL</b>: фото, видео и истории с Шёлкового пути — посмотрите, как путешествуют наши гости:",
+        "fr": "📲 <b>Suivez ALI TRAVEL</b> pour des photos, vidéos et récits de la Route de la soie, et voyez comment voyagent nos hôtes :",
+        "de": "📲 <b>Folgen Sie ALI TRAVEL</b> für Fotos, Videos und Geschichten von der Seidenstraße und sehen Sie, wie unsere Gäste reisen:",
+        "es": "📲 <b>Siga a ALI TRAVEL</b> para ver fotos, vídeos e historias de la Ruta de la Seda y cómo viajan nuestros huéspedes:"},
+})

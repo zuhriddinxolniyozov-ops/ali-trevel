@@ -583,3 +583,54 @@ class TelegramBookingTests(APITestCase):
         self.assertIn("registered as the <b>ALI TRAVEL team</b>", self.api.texts()[0])
         self.say("/start", chat=2002, username="someone_else")
         self.assertNotIn("ALI TRAVEL team", self.api.texts()[-2])
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="", SITE_URL="http://localhost:5173")
+class TelegramSocialTests(APITestCase):
+    def setUp(self):
+        self.api = FakeTelegram()
+        self.bot = Bot(self.api)
+        self.tour = models.Tour.objects.create(
+            slug="city", title="City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture", duration_label="2 days",
+            group_type="Small group", summary="s", price_from_usd=200, status="published")
+
+    def start(self, lang="en"):
+        self.bot.handle({"message": {"chat": {"id": 5}, "from": {"first_name": "Bo", "username": "bo"}, "text": "/start"}})
+        self.bot.handle({"callback_query": {"id": "1", "data": f"lang:{lang}", "from": {"first_name": "Bo", "username": "bo"}, "message": {"chat": {"id": 5}}}})
+
+    def press(self, data):
+        self.bot.handle({"callback_query": {"id": "1", "data": data, "from": {"first_name": "Bo", "username": "bo"}, "message": {"chat": {"id": 5}}}})
+
+    def links(self):
+        return [b["url"] for b in self.api.buttons() if "url" in b]
+
+    def test_after_a_tour_is_chosen_the_social_networks_are_suggested(self):
+        models.SiteContent.objects.update_or_create(pk=1, defaults={
+            "instagram_url": "https://www.instagram.com/al1_travel1", "youtube_url": "https://youtube.com/@alitravel_z", "telegram_url": "https://t.me/al1_travel1"})
+        self.start("ru")
+        self.press("t:city")
+        self.assertIn("Подписывайтесь на ALI TRAVEL", self.api.last()["text"])
+        self.assertEqual(self.links(), ["https://www.instagram.com/al1_travel1", "https://youtube.com/@alitravel_z", "https://t.me/al1_travel1"])
+
+    def test_nothing_is_suggested_when_no_social_links_are_set(self):
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"instagram_url": "", "youtube_url": "", "telegram_url": "", "facebook_url": ""})
+        self.start()
+        self.press("t:city")
+        self.assertNotIn("Follow ALI TRAVEL", " ".join(self.api.texts()))
+
+    def test_links_that_are_not_https_are_never_offered(self):
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"instagram_url": "instagram.com/x", "youtube_url": "http://plain.example"})
+        self.start()
+        self.press("t:city")
+        self.assertEqual(self.links(), [])
+
+    def test_the_suggestion_also_follows_a_finished_booking(self):
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"instagram_url": "https://www.instagram.com/al1_travel1"})
+        self.start()
+        self.press("b:city")
+        for answer in ("2099-05-01", "2"):
+            self.bot.handle({"message": {"chat": {"id": 5}, "from": {"first_name": "Bo", "username": "bo"}, "text": answer}})
+        self.bot.handle({"message": {"chat": {"id": 5}, "from": {"first_name": "Bo", "username": "bo"}, "contact": {"phone_number": "+998901112233"}}})
+        texts = self.api.texts()
+        self.assertTrue(any("received for" in t for t in texts))
+        self.assertTrue(any("Follow ALI TRAVEL" in t for t in texts))
