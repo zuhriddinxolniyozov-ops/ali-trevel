@@ -193,3 +193,19 @@ transport options have no destination, so a limited campaign does not discount t
   loaded until the visitor accepts.
 - **Spam protection:** forms contain a hidden field that robots fill in (such messages are silently dropped), and bookings, messages
   and reviews are rate-limited per visitor.
+
+## Telegram bot for travellers
+
+The bot (`@alitraveluzbot`) does two jobs: it alerts the team (see Notifications) and it answers travellers.
+
+- **/start** asks for a language (English, Uzbek, Russian, French, German, Spanish). The choice is remembered; `/start` or the
+  Language button changes it.
+- The **menu** shows destinations, tours, cooking classes, prices and group sizes, the cancellation and payment rules, and contact
+  details. Everything comes live from the website's own data (tour texts in the traveller's language, discounts, group-price
+  table, contact details from *Contact & settings*), so editing the site updates the bot.
+- **Send a request** (or *Request this tour*) lets the traveller write a message and share their phone number. It arrives as an
+  *Enquiry* in the admin panel and as an alert in the team's Telegram.
+- Run it with `python manage.py telegram_bot` (it polls Telegram, so no public address is needed). On a server use
+  `deploy/alitravel-bot.service`. Run `python manage.py telegram_setup` once to name the bot and register its commands.
+- Links to the website are only shown as buttons when `SITE_URL` is a public `https://` address; before that they appear as text.
+- The bot's texts are in `backend/api/telegram_texts.py`.

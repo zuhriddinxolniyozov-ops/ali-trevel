@@ -17,6 +17,11 @@ DESCRIPTIONS = {
     "uz": "ALI TRAVEL xabarnomalari: bot saytdan kelgan yangi bron so'rovlari, xabarlar va sharhlar haqida jamoani xabardor qiladi.",
     "ru": "Уведомления ALI TRAVEL: бот сообщает команде о новых запросах на бронирование, сообщениях и отзывах с сайта.",
 }
+COMMANDS = {
+    "": [("start", "Start / choose language"), ("menu", "Show the menu"), ("language", "Change language"), ("contact", "Contact us")],
+    "uz": [("start", "Boshlash / tilni tanlash"), ("menu", "Menyuni koʻrsatish"), ("language", "Tilni oʻzgartirish"), ("contact", "Aloqa")],
+    "ru": [("start", "Начать / выбрать язык"), ("menu", "Показать меню"), ("language", "Сменить язык"), ("contact", "Контакты")],
+}
 SHORT = {"": "ALI TRAVEL booking alerts", "uz": "ALI TRAVEL bron xabarnomalari", "ru": "Уведомления о бронированиях ALI TRAVEL"}
 
 
@@ -51,7 +56,8 @@ class Command(BaseCommand):
         for code, text in DESCRIPTIONS.items():
             call(token, "setMyDescription", {"description": text, "language_code": code})
             call(token, "setMyShortDescription", {"short_description": SHORT[code], "language_code": code})
-        call(token, "setMyCommands", {"commands": []})
+        for code, commands in COMMANDS.items():
+            call(token, "setMyCommands", {"commands": [{"command": c, "description": d} for c, d in commands], "language_code": code})
         self.stdout.write("Bot description set (English, Uzbek, Russian).")
 
         chat_id = settings.TELEGRAM_CHAT_ID

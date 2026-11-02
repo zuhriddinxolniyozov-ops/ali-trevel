@@ -168,7 +168,8 @@ def booking_cancelled_by_traveller(booking):
 
 def message_received(message):
     text = f"From: {message.full_name} <{message.email}>\nPhone: {message.phone or '-'}\nSubject: {message.subject or '-'}\n\n{message.message[:2000]}\n\nOpen: {settings.SITE_URL}/admin/enquiries"
-    _background(_tell_the_team, f"New message from {message.full_name}", text, message.email)
+    synthetic = message.email.endswith(".invalid")  # messages typed into the Telegram bot have no real e-mail address
+    _background(_tell_the_team, f"New message from {message.full_name}", text, None if synthetic else message.email)
 
 
 def review_received(review):

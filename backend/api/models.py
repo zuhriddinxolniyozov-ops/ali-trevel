@@ -399,3 +399,19 @@ class Review(models.Model):
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
         self.refresh_tour()
+
+
+class TelegramUser(models.Model):
+    """Someone who talks to the Telegram bot: the language they picked and where they are in a conversation."""
+
+    chat_id = models.BigIntegerField(unique=True)
+    lang = models.CharField(max_length=5, blank=True)
+    first_name = models.CharField(max_length=120, blank=True)
+    username = models.CharField(max_length=80, blank=True)
+    state = models.CharField(max_length=20, blank=True)  # "" or "asking" (the next message is a request for the team)
+    state_data = models.CharField(max_length=200, blank=True)  # e.g. the slug of the tour they want to request
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.first_name or self.username or self.chat_id} ({self.lang or '?'})"

@@ -339,3 +339,138 @@ class SeoTests(APITestCase):
         text = self.client.get("/robots.txt").content.decode()
         self.assertIn("Disallow: /admin", text)
         self.assertIn("/sitemap.xml", text)
+
+
+from .telegram_bot import Bot
+
+
+class FakeTelegram:
+    """Stands in for Telegram: remembers what the bot sent."""
+
+    def __init__(self, fail_photos=False):
+        self.sent, self.fail_photos = [], fail_photos
+
+    def __call__(self, method, payload=None):
+        if method == "sendPhoto" and self.fail_photos:
+            raise RuntimeError("wrong file identifier / HTTP URL specified")
+        self.sent.append((method, payload or {}))
+        return {}
+
+    def texts(self):
+        return [p["text"] for m, p in self.sent if m == "sendMessage"]
+
+    def last(self):
+        return [p for m, p in self.sent if m == "sendMessage"][-1]
+
+    def buttons(self):
+        return [b for row in self.last().get("reply_markup", {}).get("inline_keyboard", []) for b in row]
+
+
+@override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="", SITE_URL="https://alitravel.example")
+class TelegramBotTests(APITestCase):
+    def setUp(self):
+        self.api = FakeTelegram()
+        self.bot = Bot(self.api)
+        self.tour = models.Tour.objects.create(
+            slug="city", title="City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture", duration_label="2 days",
+            group_type="Small group", summary="A fine tour.", price_from_usd=200, highlights=["Registan"], status="published",
+            i18n={"uz": {"title": "Shahar turi", "summary": "Yaxshi tur."}})
+        models.Destination.objects.create(slug="samarkand", name="Samarkand", region="Silk Road", summary="Domes.", suggested_duration="3 days", status="published")
+
+    def say(self, text, chat=77, user="Anna"):
+        self.bot.handle({"message": {"chat": {"id": chat}, "from": {"first_name": user, "username": "anna_t"}, "text": text}})
+
+    def press(self, data, chat=77):
+        self.bot.handle({"callback_query": {"id": "1", "data": data, "from": {"first_name": "Anna", "username": "anna_t"}, "message": {"chat": {"id": chat}}}})
+
+    def choose(self, code):
+        self.say("/start")
+        self.press(f"lang:{code}")
+
+    def test_start_offers_the_six_languages(self):
+        self.say("/start")
+        self.assertEqual([b["callback_data"] for b in self.api.buttons()], [f"lang:{c}" for c in ("en", "uz", "ru", "fr", "de", "es")])
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).lang, "")
+
+    def test_the_chosen_language_is_remembered_and_used(self):
+        self.choose("uz")
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).lang, "uz")
+        self.assertIn("xush kelibsiz", self.api.last()["text"])
+        self.assertEqual([b["callback_data"] for b in self.api.buttons() if "callback_data" in b][:4], ["dests", "tours", "classes", "prices"])
+        self.press("tours")
+        self.assertIn("Shahar turi · $200", [b["text"] for b in self.api.buttons()])  # the admin's Uzbek title
+
+    def test_start_again_lets_the_traveller_change_language(self):
+        self.choose("ru")
+        self.say("/start")
+        self.assertEqual(len(self.api.buttons()), 6)
+        self.press("lang:de")
+        self.assertIn("Willkommen", self.api.last()["text"])
+
+    def test_a_tour_card_shows_price_discount_link_and_a_request_button(self):
+        models.Promotion.objects.create(title="Sale", percent=10, applies_to="all")
+        self.choose("en")
+        self.press("t:city")
+        card = self.api.last()["text"]
+        self.assertIn("<s>$200</s> <b>$180</b>", card)
+        self.assertIn("20 or more", card)
+        self.assertIn("https://alitravel.example/tours/city", card)
+        self.assertIn("Registan", card)
+        self.assertIn("r:city", [b.get("callback_data") for b in self.api.buttons()])
+
+    def test_the_price_page_lists_the_group_tiers(self):
+        self.choose("en")
+        self.press("prices")
+        text = self.api.last()["text"]
+        self.assertIn("20+ travelers — 100%", text)
+        self.assertIn("2–3 travelers — 180%", text)
+        self.assertIn("1 travelers — 220%", text)
+
+    def test_a_request_reaches_the_team_and_the_admin_panel(self):
+        self.choose("en")
+        self.press("r:city")
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "asking")
+        self.assertTrue(self.api.last()["reply_markup"]["keyboard"][0][0]["request_contact"])
+        self.say("2 people, 5 May please")
+        message = models.ContactMessage.objects.get()
+        self.assertIn("2 people, 5 May please", message.message)
+        self.assertIn("City Tour", message.message)
+        self.assertIn("@anna_t", message.message)
+        self.assertEqual(message.subject, "Telegram: City Tour")
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "")
+        mail_to_team = [m for m in mail.outbox if m.to == ["team@example.com"]]
+        self.assertEqual(len(mail_to_team), 1)
+        self.assertEqual(mail_to_team[0].reply_to, [])  # the synthetic address is never used for replies
+
+    def test_a_shared_phone_number_is_saved_and_cancel_sends_nothing(self):
+        self.choose("en")
+        self.press("ask")
+        self.bot.handle({"message": {"chat": {"id": 77}, "from": {"first_name": "Anna"}, "contact": {"phone_number": "+4915112345"}}})
+        self.assertEqual(models.ContactMessage.objects.get().phone, "+4915112345")
+        self.press("ask")
+        self.say("✖️ Cancel")
+        self.assertEqual(models.ContactMessage.objects.count(), 1)
+        self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "")
+
+    def test_a_photo_telegram_cannot_fetch_does_not_stop_the_answer(self):
+        self.api = FakeTelegram(fail_photos=True)
+        self.bot = Bot(self.api)
+        self.tour.image_url = "https://example.com/photo.jpg"
+        self.tour.save()
+        self.choose("en")
+        self.press("t:city")
+        self.assertIn("City Tour", self.api.last()["text"])
+
+    def test_unknown_text_gets_a_hint_and_the_menu(self):
+        self.choose("en")
+        self.say("blah blah")
+        texts = self.api.texts()
+        self.assertIn("did not quite understand", texts[-2])
+        self.assertIn("Welcome", texts[-1])
+
+    def test_contact_details_come_from_the_site_settings(self):
+        models.SiteContent.objects.update_or_create(pk=1, defaults={"phone_primary": "+998901112233", "email": "hello@example.com"})
+        self.choose("en")
+        self.press("contact")
+        self.assertIn("+998901112233", self.api.last()["text"])
+        self.assertIn("hello@example.com", self.api.last()["text"])

@@ -1,0 +1,16 @@
+# systemd unit that keeps the Telegram bot answering: copy to /etc/systemd/system/alitravel-bot.service, then
+#   sudo systemctl daemon-reload && sudo systemctl enable --now alitravel-bot
+# Adjust the user and paths to match your server. The bot reads TELEGRAM_BOT_TOKEN from backend/.env.
+[Unit]
+Description=ALI TRAVEL Telegram bot
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/alitravel/backend
+ExecStart=/var/www/alitravel/venv/bin/python manage.py telegram_bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
