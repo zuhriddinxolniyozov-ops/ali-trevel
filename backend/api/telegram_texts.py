@@ -111,19 +111,20 @@ T.update({
     "book_tour": {"en": "📅 Book this tour", "uz": "📅 Shu turni bron qilish", "ru": "📅 Забронировать этот тур", "fr": "📅 Réserver ce circuit", "de": "📅 Diese Tour buchen", "es": "📅 Reservar este tour"},
     "menu_mine": {"en": "📖 My bookings", "uz": "📖 Mening bronlarim", "ru": "📖 Мои бронирования", "fr": "📖 Mes réservations", "de": "📖 Meine Buchungen", "es": "📖 Mis reservas"},
     "book_date": {
-        "en": "📅 <b>{title}</b>\nWhen would you like to start? Write the date, for example <code>2027-05-01</code> or <code>01.05.2027</code>.",
-        "uz": "📅 <b>{title}</b>\nQachon boshlamoqchisiz? Sanani yozing, masalan <code>2027-05-01</code> yoki <code>01.05.2027</code>.",
-        "ru": "📅 <b>{title}</b>\nКогда вы хотите начать? Напишите дату, например <code>2027-05-01</code> или <code>01.05.2027</code>.",
-        "fr": "📅 <b>{title}</b>\nQuand souhaitez-vous commencer ? Écrivez la date, par exemple <code>2027-05-01</code> ou <code>01.05.2027</code>.",
-        "de": "📅 <b>{title}</b>\nWann möchten Sie beginnen? Schreiben Sie das Datum, zum Beispiel <code>2027-05-01</code> oder <code>01.05.2027</code>.",
-        "es": "📅 <b>{title}</b>\n¿Cuándo le gustaría empezar? Escriba la fecha, por ejemplo <code>2027-05-01</code> o <code>01.05.2027</code>."},
+        "en": "📅 <b>{title}</b>\nWhen would you like to start? Write the date in any form, for example <code>15 May</code>, <code>15.05.2027</code> or <code>tomorrow</code>, or press the button if you do not know yet.",
+        "uz": "📅 <b>{title}</b>\nQachon boshlamoqchisiz? Sanani xohlagan koʻrinishda yozing, masalan <code>15 may</code>, <code>15.05.2027</code> yoki <code>ertaga</code>, yoki hali bilmasangiz tugmani bosing.",
+        "ru": "📅 <b>{title}</b>\nКогда вы хотите начать? Напишите дату в любом виде, например <code>15 мая</code>, <code>15.05.2027</code> или <code>завтра</code>, или нажмите кнопку, если пока не знаете.",
+        "fr": "📅 <b>{title}</b>\nQuand souhaitez-vous commencer ? Écrivez la date sous n'importe quelle forme, par exemple <code>15 mai</code>, <code>15.05.2027</code> ou <code>demain</code>, ou appuyez sur le bouton si vous ne savez pas encore.",
+        "de": "📅 <b>{title}</b>\nWann möchten Sie beginnen? Schreiben Sie das Datum in beliebiger Form, zum Beispiel <code>15. Mai</code>, <code>15.05.2027</code> oder <code>morgen</code>, oder drücken Sie die Taste, wenn Sie es noch nicht wissen.",
+        "es": "📅 <b>{title}</b>\n¿Cuándo le gustaría empezar? Escriba la fecha de cualquier forma, por ejemplo <code>15 de mayo</code>, <code>15.05.2027</code> o <code>mañana</code>, o pulse el botón si aún no lo sabe."},
+    "book_date_later": {"en": "🗓 I will tell the date later", "uz": "🗓 Sanani keyinroq aytaman", "ru": "🗓 Скажу дату позже", "fr": "🗓 Je dirai la date plus tard", "de": "🗓 Ich nenne das Datum später", "es": "🗓 Diré la fecha más tarde"},
     "book_date_bad": {
-        "en": "I could not read that date, or it is in the past. Please write it like <code>2027-05-01</code> or <code>01.05.2027</code>.",
-        "uz": "Sanani oʻqiy olmadim yoki u oʻtib ketgan. Iltimos, <code>2027-05-01</code> yoki <code>01.05.2027</code> koʻrinishida yozing.",
-        "ru": "Не удалось прочитать дату, или она уже прошла. Напишите, например, <code>2027-05-01</code> или <code>01.05.2027</code>.",
-        "fr": "Je n'ai pas pu lire cette date, ou elle est passée. Écrivez-la ainsi : <code>2027-05-01</code> ou <code>01.05.2027</code>.",
-        "de": "Das Datum konnte ich nicht lesen, oder es liegt in der Vergangenheit. Bitte schreiben Sie es so: <code>2027-05-01</code> oder <code>01.05.2027</code>.",
-        "es": "No pude leer esa fecha, o ya pasó. Escríbala así: <code>2027-05-01</code> o <code>01.05.2027</code>."},
+        "en": "That date has already passed. Please write a day from today on, for example <code>15 May</code> or <code>15.05.2027</code>.",
+        "uz": "Bu sana allaqachon oʻtib ketgan. Iltimos, bugundan boshlab biror kunni yozing, masalan <code>15 may</code> yoki <code>15.05.2027</code>.",
+        "ru": "Эта дата уже прошла. Напишите день, начиная с сегодняшнего, например <code>15 мая</code> или <code>15.05.2027</code>.",
+        "fr": "Cette date est déjà passée. Écrivez un jour à partir d'aujourd'hui, par exemple <code>15 mai</code> ou <code>15.05.2027</code>.",
+        "de": "Dieses Datum liegt in der Vergangenheit. Bitte schreiben Sie einen Tag ab heute, zum Beispiel <code>15. Mai</code> oder <code>15.05.2027</code>.",
+        "es": "Esa fecha ya pasó. Escriba un día desde hoy, por ejemplo <code>15 de mayo</code> o <code>15.05.2027</code>."},
     "book_guests": {
         "en": "👥 How many travelers? Write a number from 1 to 50. (Prices per person are lower for bigger groups.)",
         "uz": "👥 Necha kishi sayohat qiladi? 1 dan 50 gacha son yozing. (Katta guruhlarda bir kishi narxi arzonroq.)",
@@ -142,6 +143,14 @@ T.update({
         "fr": "💵 {guests} × {per} par personne = <b>{total}</b>\n(le prix par personne dépend de la taille du groupe ; le prix final est confirmé par notre équipe)\n\n📱 Dernière étape : partagez votre numéro pour que nous confirmions la réservation — appuyez sur le bouton ou écrivez le numéro.",
         "de": "💵 {guests} × {per} pro Person = <b>{total}</b>\n(der Preis pro Person hängt von der Gruppengröße ab; den endgültigen Preis bestätigt unser Team)\n\n📱 Letzter Schritt: Teilen Sie Ihre Telefonnummer, damit wir die Buchung bestätigen — Knopf drücken oder Nummer eintippen.",
         "es": "💵 {guests} × {per} por persona = <b>{total}</b>\n(el precio por persona depende del tamaño del grupo; nuestro equipo confirma el precio final)\n\n📱 Último paso: comparta su teléfono para que confirmemos la reserva: pulse el botón o escriba el número."},
+    "stay_note": {
+        "en": "\n\n🏨 The price includes the most affordable hotels and a standard taxi. Hotels of 3, 4 or 5 stars and a premium-class taxi cost extra: write it in your first message to our team and we will confirm the extra amount.",
+        "uz": "\n\n🏨 Narxga eng arzon mehmonxonalar va oddiy taksi kiradi. 3, 4 yoki 5 yulduzli mehmonxonalar va premium klassdagi taksi uchun qoʻshimcha toʻlov olinadi: buni jamoamizga birinchi xabaringizda yozing, qoʻshimcha summani tasdiqlaymiz.",
+        "ru": "\n\n🏨 В цену входят самые доступные отели и обычное такси. За отели 3, 4 или 5 звёзд и такси премиум-класса взимается доплата: напишите об этом нашей команде в первом сообщении, и мы подтвердим сумму доплаты.",
+        "fr": "\n\n🏨 Le prix inclut les hôtels les plus abordables et un taxi standard. Les hôtels 3, 4 ou 5 étoiles et un taxi premium sont en supplément : écrivez-le à notre équipe dans votre premier message et nous confirmerons le montant.",
+        "de": "\n\n🏨 Im Preis sind die günstigsten Hotels und ein Standardtaxi enthalten. Hotels mit 3, 4 oder 5 Sternen und ein Premiumtaxi kosten extra: Schreiben Sie das unserem Team in Ihrer ersten Nachricht, wir bestätigen den Betrag.",
+        "es": "\n\n🏨 El precio incluye los hoteles más económicos y un taxi estándar. Los hoteles de 3, 4 o 5 estrellas y un taxi premium tienen un coste adicional: escríbalo a nuestro equipo en su primer mensaje y confirmaremos el importe.",
+    },
     "book_phone_bad": {
         "en": "That does not look like a phone number. Press the button or type it with the country code, e.g. +998 90 123 45 67.",
         "uz": "Bu telefon raqamiga oʻxshamayapti. Tugmani bosing yoki davlat kodi bilan yozing, masalan +998 90 123 45 67.",
@@ -212,3 +221,13 @@ T.update({
         "en": "We look forward to welcoming you again! 🌟", "uz": "Sizni yana kutib qolamiz! 🌟", "ru": "Будем рады видеть вас снова! 🌟",
         "fr": "Nous serons ravis de vous accueillir à nouveau ! 🌟", "de": "Wir freuen uns, Sie wieder bei uns zu begrüßen! 🌟", "es": "¡Esperamos volver a recibirle! 🌟"},
 })
+
+T.update({
+    "menu_head": {"en": "📋 Menu", "uz": "📋 Menyu", "ru": "📋 Меню", "fr": "📋 Menu", "de": "📋 Menü", "es": "📋 Menú"},
+    "bk_done_ok": {"en": "✅ {ref} is confirmed. The traveller has been told.", "uz": "✅ {ref} tasdiqlandi. Sayohatchiga xabar berildi.", "ru": "✅ {ref} подтверждена. Путешественнику сообщили.", "fr": "✅ {ref} est confirmée. Le voyageur a été prévenu.", "de": "✅ {ref} ist bestätigt. Der Reisende wurde informiert.", "es": "✅ {ref} confirmada. Se avisó al viajero."},
+    "bk_done_no": {"en": "❌ {ref} is declined. The traveller has been told.", "uz": "❌ {ref} rad etildi. Sayohatchiga xabar berildi.", "ru": "❌ {ref} отклонена. Путешественнику сообщили.", "fr": "❌ {ref} est refusée. Le voyageur a été prévenu.", "de": "❌ {ref} ist abgelehnt. Der Reisende wurde informiert.", "es": "❌ {ref} rechazada. Se avisó al viajero."},
+    "bk_already": {"en": "{ref} is already {status}.", "uz": "{ref} allaqachon: {status}.", "ru": "{ref} уже: {status}.", "fr": "{ref} est déjà : {status}.", "de": "{ref} ist bereits: {status}.", "es": "{ref} ya está: {status}."},
+    "bk_missing": {"en": "That booking was not found.", "uz": "Bunday bron topilmadi.", "ru": "Такая бронь не найдена.", "fr": "Réservation introuvable.", "de": "Buchung nicht gefunden.", "es": "No se encontró esa reserva."},
+})
+
+T.update({'skip': {'en': '⏭ Skip', 'uz': '⏭ Oʻtkazib yuborish', 'ru': '⏭ Пропустить', 'fr': '⏭ Passer', 'de': '⏭ Überspringen', 'es': '⏭ Omitir'}, 'arrival_ask': {'en': '✈️ When do you arrive at <b>Samarkand airport</b>? Write the date, the time and the flight (or train) number, e.g. <i>15 May, 14:30, HY 123</i> — so our guide can meet you. You can also skip this and tell us later.', 'uz': '✈️ <b>Samarqand aeroportiga</b> qachon yetib kelasiz? Sana, vaqt va reys (yoki poyezd) raqamini yozing, masalan <i>15-may, 14:30, HY 123</i> — gidimiz sizni kutib olishi uchun. Buni oʻtkazib yuborib, keyin ham aytishingiz mumkin.', 'ru': '✈️ Когда вы прилетаете в <b>аэропорт Самарканда</b>? Напишите дату, время и номер рейса (или поезда), например <i>15 мая, 14:30, HY 123</i> — чтобы наш гид вас встретил. Можно пропустить и сообщить позже.', 'fr': "✈️ Quand arrivez-vous à l'<b>aéroport de Samarcande</b> ? Écrivez la date, l'heure et le numéro de vol (ou de train), p. ex. <i>15 mai, 14h30, HY 123</i>, pour que notre guide vous accueille. Vous pouvez passer et nous le dire plus tard.", 'de': '✈️ Wann kommen Sie am <b>Flughafen Samarkand</b> an? Schreiben Sie Datum, Uhrzeit und Flug- (oder Zug-)Nummer, z. B. <i>15. Mai, 14:30, HY 123</i>, damit unser Guide Sie empfängt. Sie können auch überspringen und es später mitteilen.', 'es': '✈️ ¿Cuándo llega al <b>aeropuerto de Samarcanda</b>? Escriba la fecha, la hora y el número de vuelo (o de tren), p. ej. <i>15 de mayo, 14:30, HY 123</i>, para que nuestro guía le reciba. Puede omitirlo y decírnoslo más tarde.'}, 'arrival_thanks': {'en': '✅ Thank you! We have your arrival details; our guide will meet you at Samarkand airport.', 'uz': '✅ Rahmat! Yetib kelish maʻlumotingiz bizda; gidimiz sizni Samarqand aeroportida kutib oladi.', 'ru': '✅ Спасибо! Мы получили данные о вашем прибытии; наш гид встретит вас в аэропорту Самарканда.', 'fr': "✅ Merci ! Nous avons vos détails d'arrivée ; notre guide vous accueillera à l'aéroport de Samarcande.", 'de': '✅ Danke! Wir haben Ihre Ankunftsdaten; unser Guide empfängt Sie am Flughafen Samarkand.', 'es': '✅ ¡Gracias! Tenemos los datos de su llegada; nuestro guía le recibirá en el aeropuerto de Samarcanda.'}})

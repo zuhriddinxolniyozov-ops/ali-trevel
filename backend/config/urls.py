@@ -17,9 +17,10 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from api import seo
+from config import frontend
 
 urlpatterns = [
     path('api/', include('api.urls')),
@@ -30,3 +31,9 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# On a live server Django also gives out the uploaded photos and the built website (see config/frontend.py). Keep these last.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', frontend.media),
+    re_path(r'^(?P<path>.*)$', frontend.website),
+]

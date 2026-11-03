@@ -237,3 +237,122 @@ forward to welcoming them again. A trip can be reviewed once, and only from the 
   `backend/.env` (already the default when `DEBUG=false`), otherwise every visitor would look like `127.0.0.1` and share one limit.
   The counters live in each server process, so with 3 gunicorn workers the effective limit is about three times higher; use a shared
   cache (Redis) if you need exact limits.
+
+## Putting alitravel.uz online (step by step)
+
+The whole site can run as **one process**: in production Django also gives out the built website and the uploaded photos, so you need
+a server with Python and Node.js, the domain, and nothing else. (nginx in front is optional and faster; see `deploy/nginx.conf`.)
+
+**What you need:** a small Linux server (VPS) with a public IP address, and control of the DNS records of `alitravel.uz`.
+
+1. **DNS:** at your domain registrar create an `A` record for `alitravel.uz` and one for `www.alitravel.uz`, both pointing to the server's IP.
+   It can take minutes to hours to spread.
+2. **Server:** install Python 3.12+, Node.js 20+, git and nginx (`sudo apt install python3-venv nodejs npm git nginx certbot python3-certbot-nginx`).
+   Copy the project to `/var/www/alitravel` (git clone or upload).
+3. **Backend:**
+   ```
+   cd /var/www/alitravel && python3 -m venv venv && venv/bin/pip install -r backend/requirements.txt
+   cp backend/.env.example backend/.env      # then edit it (see below)
+   cd backend && ../venv/bin/python manage.py migrate
+   ../venv/bin/python manage.py seed --extras   # only for a brand-new database; skip if you copy your own db.sqlite3 and media/ folder
+   ../venv/bin/python manage.py changepassword alitravel004@gmail.com   # a new, private admin password
+   ```
+4. **`backend/.env`** needs at least: `DEBUG=false`, `SECRET_KEY=<long random string>`, `ALLOWED_HOSTS=alitravel.uz,www.alitravel.uz`,
+   `SITE_URL=https://alitravel.uz`, `CSRF_TRUSTED_ORIGINS=https://alitravel.uz,https://www.alitravel.uz`, `NUM_PROXIES=1`,
+   the e-mail settings (`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`), `TELEGRAM_BOT_TOKEN` and `TELEGRAM_TEAM_USERNAMES=Al1_travel`.
+5. **Website:** `cd frontend && npm install && npm run build`. Django then serves `frontend/dist` itself (`SERVE_FRONTEND` is on by default
+   when `DEBUG=false`). Set `SERVE_FRONTEND=false` only if nginx serves those files.
+6. **Keep it running:** `deploy/alitravel.service` (the API and the website) and `deploy/alitravel-bot.service` (the Telegram bot) with systemd.
+7. **nginx + HTTPS:** use `deploy/nginx.conf`, then `sudo certbot --nginx -d alitravel.uz -d www.alitravel.uz` for a free certificate.
+   If your host terminates HTTPS itself and does not send `X-Forwarded-Proto`, set `SECURE_SSL_REDIRECT=false` to avoid a redirect loop.
+8. **Check everything:**
+   ```
+   cd /var/www/alitravel/backend
+   ../venv/bin/python manage.py site_check          # settings, files, content, e-mail, Telegram
+   ../venv/bin/python manage.py site_check --live   # then opens https://alitravel.uz and checks pages, API, sitemap, HTTPS redirect
+   ```
+   Every line should be `[OK]`; `[WARN]` means it works but needs attention (sample hotels, e-mail not set up, legal placeholders);
+   `[FAIL]` means the site would be broken or unsafe.
+9. **After going live:** place one test booking and one review yourself (the team gets a Telegram alert), check the Telegram bot's
+   "Open on the website" buttons appear (they need the public `https://` `SITE_URL`), submit `https://alitravel.uz/sitemap.xml` in Google
+   Search Console, and schedule `manage.py backup` every night.
+
+## Hotels, guesthouses and hostels (photo slider)
+
+- **28 real places to stay** across all seven regions: 4–5 star hotels, 3-star hotels, boutique hotels, guesthouses and hostels
+  (`manage.py seed --extras`; the earlier made-up sample hotels are archived). Names, classes and prices come from public booking
+  listings (Booking.com, Tripadvisor, Trip.com, Expedia, Hostelz and similar, 2025–2026). Booking-site prices change with the season and the
+  sites disagree, so every price is an **indicative "from" rate** (per room, or per dorm bed for hostels) and the site says so; the team
+  confirms the exact rate for the requested dates. Where the sources gave a range it is written in the description. Re-check the prices
+  and the star ratings before relying on them (`backend/api/management/commands/seed_hotels.py`).
+- **Photo slider:** every hotel card and page slides through several photos: swipe on a phone, drag with the mouse, use the arrows, dots or
+  thumbnails, or the arrow keys.
+- **Several photos from the admin panel:** Admin → Other listings → Hotels → *Edit*: the *Photo* is the cover and *More photos* takes many
+  uploads at once (reorder with the arrows, remove with the bin). Hotels also have a *Type*, *Stars* (0 for guesthouses and hostels) and *Price is*
+  (per room or per bed).
+- **Photos:** almost no free photos of these businesses exist, so until you upload the hotels' own pictures each gallery shows the destination and
+  the page says so (tick off *Photos show the destination, not this property* after uploading real ones). Hyatt Regency Tashkent has a real photo.
+- The hotel list can be filtered by class/type and by destination.
+
+### Real photos of the hotels
+
+- Free (Wikimedia Commons) photos of the property itself exist for only a few places: **Orient Star Khiva**, **LOTTE City Hotel Tashkent Palace** and
+  **Hyatt Regency Tashkent**. Every other hotel shows real photographs of *similar places to stay* in the same city (hotel rooms, courtyards, entrances,
+  hostel signs; lists in `seed_hotels.py` POOLS and `hotel_photos.py`), and the page says so. Monuments are never used as hotel photos.
+  Photos on Booking.com, Tripadvisor or a hotel's own website belong to their owners and must not be copied.
+- For every other hotel ask for the photographs: **Admin → Partner letters → Photo permission request** drafts a letter (English, Uzbek, Russian) asking a
+  hotel, guide or driver for 6–12 photographs and for permission to publish them with their name credited. Upload what they send in
+  **Other listings → Hotels → Edit → More photos**, then untick *Photos show similar places, not this property itself*.
+
+### Silk Road map on the home page
+
+Right after "Traveller stories" the home page shows a map of Uzbekistan with the Great Silk Road drawn on it (Tashkent – Samarkand – Bukhara – Khiva,
+branches to the Fergana Valley and to Shahrisabz/Termez). Cities link to their destination pages. Code: `frontend/src/components/SilkRoadMap.jsx`; the
+outline and city positions are in `frontend/src/silkRoadGeo.js` (Natural Earth, public domain); texts in `strings.silkroad.js`.
+
+### The 7-day Silk Road package
+
+The first card of the home page's Destinations section is a 7-day package (`/tours/silk-road-7-day-journey`): 2 days Samarkand, a day in
+Shahrisabz and Qarshi, a day on the road to Bukhara, 2 days Bukhara and the road back via Gijduvan and Rabat-i-Malik. Data: `seed_package.py`
+(created by `manage.py seed --extras`). It is an ordinary tour, so **Site editor** and **Admin → Tours** change it (texts, photo, price, day plan)
+and the public site shows the change at once. The places on its plan (photo, note, keepsake text) are single-place tours: edit them the same way.
+The price ($790) is a sample to confirm.
+
+The home page's first row shows three packages in this order: the 2-day Samarkand City Tour, the 7-day journey and the 11-day journey
+(Samarkand, Shahrisabz, Qarshi, Bukhara, Khiva; `seed_package_11.py`, `/tours/silk-road-11-day-journey`). They also come first on the Tours page.
+Every tour with a day plan of two or more days includes the most affordable hotels and a standard taxi: its booking form (and the Telegram bot) says that
+3-, 4- and 5-star hotels and a premium-class taxi cost extra, and the choice is saved in the booking request. The prices ($790 and $1,290) are samples.
+
+Telegram bot: the welcome text ("Welcome to ALI TRAVEL … What would you like to see?") is shown only right after `/start` and the language choice; later menus carry a short
+"Menu" title. Every new-booking alert sent to the team has **Confirm / Decline** buttons: a team account (TELEGRAM_TEAM_USERNAMES) taps one, the booking becomes
+confirmed or cancelled and the traveller is told by e-mail and in Telegram, exactly as when the status is changed in the admin panel.
+
+Between the Destinations and Tours sections of the home page an advert shows the three places with the cheapest entrance tickets (`BestValue.jsx`, picked
+automatically from the places' entrance fees). A single place cannot be booked on its own, so each card says which tour it belongs to and leads to that full tour.
+
+After a tour request the traveller is asked when they reach Samarkand airport (date, time, flight or train number): a form on the "Request received" screen on the website
+(`POST /api/bookings-arrival/`, identified by booking reference + e-mail) and one more question in the Telegram bot (free text, can be skipped). The details are saved on
+the booking, shown in Admin → Bookings and sent to the team by e-mail and Telegram.
+
+### Accounting, customers, enquiries, extra contacts, exact places
+
+- **Automatic costs.** When a booking is confirmed or completed its costs are added by themselves (`api/accounting.py`, `signals.py`): guide per day, cars (one per 4 travellers) per day,
+  the most affordable hotel (2 travellers per room, nights = days - 1) and the entrance tickets when the price includes them; a tour's own cost template, if it has one, is used instead.
+  Rates: **Admin -> Accounting -> Cost rates** (sample values, change them). Profit = price - costs. A cost added or edited by hand is never overwritten.
+  The Summary also shows the expected profit of confirmed tours.
+- **Customers** lists website accounts, guests who booked without an account and Telegram bot users, with their bookings (and arrival details).
+- **Enquiries**: New / Read / Replied buttons (they did not work before: the status was read-only in the API); Telegram messages are marked.
+- **Settings -> More contact lines**: any number of extra lines (name, text, optional link) shown in the footer and on the contact page.
+- **Exact places**: every single place of a tour has a latitude, longitude and optional note (`seed_locations.py`, editable in the tour editor): a map with links to
+  Google Maps and directions on its page, a pin next to each stop of a tour and a link that opens the whole route. Coordinates come from Wikipedia and OpenStreetMap;
+  a few places only have the town centre and say "approximate location".
+
+Telegram bot, less clutter: buttons that only navigate (menu, destinations, tours, a tour, prices, policy, contact, my bookings, language) **edit the message they are under** instead of
+sending a new one; a tour or destination shows its picture as a link preview inside the same message. A task (question, booking, arrival, review) ends with the menu buttons under its last
+message — no separate "Menu" message. When booking, the date can be written in any form ("15 May", "15.05.2027", "tomorrow", "1 мая"…), left for later with a button, or written as free
+text (kept for the team to confirm).
+
+Telegram bot: a tour now has the same information as its page on the website, in six buttons under the tour (they edit the same message): **details** (type, duration, group, languages,
+transport/tickets/pickup, guide, meeting point, included / not included, story), **day-by-day plan** (in pages), **places and map** (every stop with its ticket and a Google Maps link,
+and the whole route as one button), **price by group size** (the bigger the group, the cheaper per person) and booking. A single place shows its note, ticket and exact location and leads to its
+full tour. Alerts for the team in Telegram use the Uzbek tour names; the 7- and 11-day packages are priced by group size like the other tours.

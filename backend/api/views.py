@@ -90,6 +90,8 @@ class TourViewSet(CatalogViewSet):
         for key in ("category", "destination_slug", "featured", "parent_slug", "tour_type"):
             if params.get(key):
                 qs = qs.filter(**{key: params[key]})
+        if params.get("has_parent"):  # every single place of every tour (the day plan finds its places among them by name)
+            qs = qs.exclude(parent_slug="")
         return qs
 
 
@@ -106,7 +108,7 @@ class TourViewSet(CatalogViewSet):
 
 
 class HotelViewSet(CatalogViewSet):
-    queryset = models.Hotel.objects.all()
+    queryset = models.Hotel.objects.order_by("-stars", "id")  # 5-star hotels first
     serializer_class = s.HotelSerializer
 
 
@@ -173,6 +175,26 @@ def submit_booking(request):
     return Response({"reference": booking.reference, "status": booking.status}, status=201)
 
 
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([BookingThrottle])
+def booking_arrival(request):
+    """The traveller tells us when they arrive at Samarkand airport; the booking reference and its e-mail address identify the booking."""
+    reference = str(request.data.get("reference") or "").strip().upper()
+    email = str(request.data.get("email") or "").strip().lower()
+    booking = models.BookingRequest.objects.filter(reference=reference, email__iexact=email).first() if reference and email else None
+    if not booking or booking.status in ("cancelled", "completed"):
+        return Response({"error": "We could not find this booking."}, status=404)
+    ser = s.ArrivalSerializer(data=request.data)
+    if not ser.is_valid():
+        return Response({"error": "Please check the arrival date and time.", "fields": ser.errors}, status=400)
+    for field, value in ser.validated_data.items():
+        setattr(booking, field, value)
+    booking.save(update_fields=list(ser.validated_data))
+    notifications.arrival_received(booking)
+    return Response({"ok": True})
+
+
 class BookingViewSet(viewsets.ReadOnlyModelViewSet):
     """Admins see everything; signed-in users see requests tied to their account or email."""
 
@@ -194,7 +216,7 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
         booking.status = "cancelled"
         booking.save(update_fields=["status"])
         notifications.booking_cancelled_by_traveller(booking)
-        return Response(s.BookingSerializer(booking).data)
+        return Response(s.BookingSerializer(booking, context={"request": request}).data)
 
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAdminUser])
     def update_status(self, request, pk=None):
@@ -206,7 +228,7 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
         booking.save()
         if booking.status != before:
             notifications.booking_status_changed(booking)
-        return Response(s.BookingSerializer(booking).data)
+        return Response(s.BookingSerializer(booking, context={"request": request}).data)
 
 
 class SavedItemViewSet(viewsets.ModelViewSet):
@@ -226,7 +248,7 @@ class SavedItemViewSet(viewsets.ModelViewSet):
 
 class MessageAdminViewSet(viewsets.ModelViewSet):
     queryset = models.ContactMessage.objects.all()
-    serializer_class = s.ContactMessageSerializer
+    serializer_class = s.ContactMessageAdminSerializer
     permission_classes = [permissions.IsAdminUser]
     http_method_names = ["get", "patch", "delete"]
 
@@ -259,8 +281,39 @@ class PartnerViewSet(viewsets.ModelViewSet):
 @api_view(["GET"])
 @permission_classes([permissions.IsAdminUser])
 def customers(request):
-    rows = User.objects.order_by("-date_joined").values("id", "email", "first_name", "last_name", "is_staff", "date_joined")
-    return Response(list(rows))
+    """Everyone who dealt with us, as one list: website accounts, guests who booked without an account and Telegram bot users."""
+    bookings = list(models.BookingRequest.objects.all())  # newest first
+    by_email, by_chat = {}, {}
+    for b in bookings:
+        if b.telegram_chat_id:
+            by_chat.setdefault(b.telegram_chat_id, []).append(b)
+        else:
+            by_email.setdefault(b.email.lower(), []).append(b)
+
+    def summary(rows):
+        return {
+            "bookings": len(rows), "total_usd": float(sum((r.final_price_usd if r.final_price_usd is not None else r.estimated_total_usd) - r.discount_usd for r in rows if r.status != "cancelled")),
+            "last_booking_at": rows[0].created if rows else None,
+            "recent_bookings": [{"reference": r.reference, "service_title": r.service_title, "status": r.status, "travel_date": r.travel_date, "guests": r.guests,
+                                 "arrival": " ".join(x for x in (str(r.arrival_date or ""), r.arrival_time.strftime("%H:%M") if r.arrival_time else "", r.arrival_flight, r.arrival_note) if x)} for r in rows[:5]],
+        }
+
+    people, known_emails = [], set()
+    for u in User.objects.order_by("-date_joined"):
+        known_emails.add(u.email.lower())
+        rows = by_email.get(u.email.lower(), [])
+        people.append({"key": f"user-{u.id}", "kind": "account", "name": u.get_full_name() or u.username, "email": u.email, "phone": rows[0].phone if rows else "", "username": "",
+                       "lang": "", "chat_id": None, "is_staff": u.is_staff, "joined": u.date_joined, **summary(rows)})
+    for email, rows in by_email.items():
+        if email not in known_emails:
+            people.append({"key": f"guest-{email}", "kind": "guest", "name": rows[0].full_name, "email": rows[0].email, "phone": rows[0].phone, "username": "", "lang": rows[0].lang,
+                           "chat_id": None, "is_staff": False, "joined": rows[-1].created, **summary(rows)})
+    for t in models.TelegramUser.objects.order_by("-created"):
+        rows = by_chat.get(t.chat_id, [])
+        people.append({"key": f"telegram-{t.chat_id}", "kind": "telegram", "name": t.display_name or str(t.chat_id), "email": "", "phone": t.phone or (rows[0].phone if rows else ""),
+                       "username": t.username, "lang": t.lang, "chat_id": t.chat_id, "is_staff": False, "joined": t.created, **summary(rows)})
+    people.sort(key=lambda p: p["last_booking_at"] or p["joined"], reverse=True)
+    return Response(people)
 
 
 @api_view(["GET"])
@@ -285,8 +338,8 @@ def admin_stats(request):
         "customers": User.objects.filter(is_staff=False).count(),
         "new_messages": models.ContactMessage.objects.filter(status="new").count(),
         "pending_partners": models.Partner.objects.filter(status="pending").count(),
-        "latest": s.BookingSerializer(latest, many=True).data,
-        "upcoming": s.BookingSerializer(upcoming, many=True).data,
+        "latest": s.BookingSerializer(latest, many=True, context={"request": request}).data,
+        "upcoming": s.BookingSerializer(upcoming, many=True, context={"request": request}).data,
     })
 
 

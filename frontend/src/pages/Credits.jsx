@@ -18,20 +18,21 @@ export default function Credits() {
   const t = useT()
   const tours = useFetch('/tours/', { list: true })
   const places = useFetch('/destinations/', { list: true })
+  const hotels = useFetch('/hotels/', { list: true })
   const credits = useMemo(() => {
     const seen = new Map()
-    ;[...places.data.map((d) => [d.name, d.image_url]), ...tours.data.map((x) => [x.title, x.image_url])].forEach(([name, url]) => {
+    ;[...places.data.map((d) => [d.name, d.image_url]), ...tours.data.map((x) => [x.title, x.image_url]), ...hotels.data.flatMap((h) => [h.image_url, ...(h.gallery || [])].map((url) => [`${t('Hotel photos')} · ${h.destination_name}`, url]))].forEach(([name, url]) => {
       const file = commonsFile(url)
       if (file && !seen.has(file)) seen.set(file, name)
     })
     return [...seen].map(([file, name]) => ({ file, name }))
-  }, [tours.data, places.data])
+  }, [tours.data, places.data, hotels.data])
   return (
     <>
       <Seo title={t('Photo credits')} description={t('Where the photographs on this website come from.')} />
       <PageHero eyebrow="Legal" title="Photo credits" description="Where the photographs on this website come from." image={IMAGES.hotel} />
       <div className="shell max-w-3xl py-16 lg:py-24">
-        <p className="text-[16px] leading-relaxed text-ink">{t('Many photographs of historical places on this website are shared on Wikimedia Commons under open licences such as Creative Commons. Each photograph below links to its Commons page, which names the photographer and the licence. Some other pictures on the website are illustrations made for ALI TRAVEL.')}</p>
+        <p className="text-[16px] leading-relaxed text-ink">{t('Many photographs of historical places, hotels and guesthouses on this website are shared on Wikimedia Commons under open licences such as Creative Commons. Each photograph below links to its Commons page, which names the photographer and the licence. Some other pictures on the website are illustrations made for ALI TRAVEL.')}</p>
         <ul className="mt-8 divide-y divide-navy/10 rounded-sm border border-navy/10 bg-white">
           {credits.map((c) => (
             <li key={c.file} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 px-4 py-3 text-[14px]">

@@ -47,14 +47,54 @@ def model_serializer(model, **extra):
     return type(f"{model.__name__}Serializer", bases, {"Meta": meta})
 
 
-SiteContentSerializer = model_serializer(models.SiteContent)
+class SiteContentSerializer(serializers.ModelSerializer):
+    """The public site settings. The cost rates are business-internal and never leave the server here (Accounting has its own endpoint)."""
+
+    class Meta:
+        model = models.SiteContent
+        exclude = ["cost_rates"]
+
+    def validate_extra_contacts(self, value):
+        """Extra lines for the footer and contact page: a label, a value and an optional link, checked and trimmed."""
+        if not isinstance(value, list) or len(value) > 20:
+            raise serializers.ValidationError("Add up to 20 lines.")
+        clean = []
+        for item in value:
+            if not isinstance(item, dict):
+                raise serializers.ValidationError("Each line needs a label and a value.")
+            label, text, url = (str(item.get(k) or "").strip() for k in ("label", "value", "url"))
+            if not (label or text):
+                continue  # an empty row is simply dropped
+            if len(label) > 60 or len(text) > 200 or len(url) > 300:
+                raise serializers.ValidationError("A line is too long.")
+            if url and not url.lower().startswith(("https://", "http://", "tel:", "mailto:", "tg://")):
+                raise serializers.ValidationError("A link must start with https://, tel: or mailto:.")
+            clean.append({"label": label, "value": text, "url": url})
+        return clean
+
+
 DestinationSerializer = model_serializer(models.Destination)
 HotelSerializer = model_serializer(models.Hotel)
 FoodSerializer = model_serializer(models.FoodExperience)
 TransportSerializer = model_serializer(models.TransportOption)
 ContactMessageSerializer = model_serializer(models.ContactMessage, read_only_fields=["status", "created"])
+ContactMessageAdminSerializer = model_serializer(models.ContactMessage, read_only_fields=["created"])  # the team can change the status
 SavedItemSerializer = model_serializer(models.SavedItem, read_only_fields=["user", "created"])
-BookingSerializer = model_serializer(models.BookingRequest)
+class BookingSerializer(serializers.ModelSerializer):
+    """A booking, with the name of the booked service in the language the admin reads (service_title_local)."""
+
+    class Meta:
+        model = models.BookingRequest
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        from .names import service_name
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        lang = (request.headers.get("X-Lang") if request else None) or "en"
+        data["service_title_local"] = service_name(instance.service_type, instance.service_slug, instance.service_title, lang) if lang != "en" else instance.service_title
+        return data
+
 PartnerSerializer = model_serializer(models.Partner, read_only_fields=["user", "status", "admin_notes"])
 PromotionSerializer = model_serializer(models.Promotion)
 LegalPageSerializer = model_serializer(models.LegalPage)
@@ -78,6 +118,13 @@ class BookingSubmitSerializer(serializers.ModelSerializer):
             "estimated_total_usd",
         ]
         extra_kwargs = {"estimated_total_usd": {"required": False}}
+
+
+class ArrivalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.BookingRequest
+        fields = ["arrival_date", "arrival_time", "arrival_flight"]
+        extra_kwargs = {"arrival_date": {"required": True, "allow_null": False}, "arrival_time": {"required": True, "allow_null": False}, "arrival_flight": {"required": False}}
 
 
 class UserSerializer(serializers.ModelSerializer):

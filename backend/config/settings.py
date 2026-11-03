@@ -181,6 +181,11 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'] + env_list('CORS_ORIGINS')
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
+# Let Django give out the built website (frontend/dist) and the uploaded photos itself: one process is then enough on a small server.
+# Default: on when DEBUG is off. Set SERVE_FRONTEND=false when nginx serves those files.
+SERVE_FRONTEND = env_bool('SERVE_FRONTEND', not DEBUG)
+FRONTEND_DIST = Path(env('FRONTEND_DIST', str(BASE_DIR.parent / 'frontend' / 'dist')))
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 X_FRAME_OPTIONS = 'SAMEORIGIN'

@@ -5,6 +5,7 @@ import { useFetch } from '../hooks'
 import { LANGS, useT } from '../i18n'
 import { cap } from '../pages/Auth'
 import { CostsField, ItineraryField } from './PlanFields'
+import GalleryField from './GalleryField'
 
 /** Photo field: preview, upload from the computer, or paste a link. */
 function ImageField({ label, help, value, onChange }) {
@@ -76,6 +77,11 @@ export const FORMS = {
         { k: 'entrance_fee_usd', label: 'Entrance ticket (USD)', kind: 'number', help: 'Only for a single place. Leave empty for normal tours.' },
         { k: 'parent_slug', label: 'Part of tour', kind: 'parent', help: 'Choose the bigger tour this place belongs to (for example “Samarkand City Tour”).' },
       ] },
+      { title: 'Exact location', hint: 'For a single place: shown on a map with links to Google Maps. In Google Maps right-click the place and click the numbers to copy them.', fields: [
+        { k: 'latitude', label: 'Latitude', kind: 'number', placeholder: '39.654722', help: 'Number of degrees north, for example 39.654722.' },
+        { k: 'longitude', label: 'Longitude', kind: 'number', placeholder: '66.975556', help: 'Number of degrees east, for example 66.975556.' },
+        { k: 'location_note', label: 'Address or how to find it', tr: true, placeholder: 'Registan Street, next to the ticket office' },
+      ] },
       { title: 'What is included', hint: 'Tick what the price covers, then list the details.', fields: [
         { k: 'transport_included', label: 'Transport included', kind: 'bool' },
         { k: 'tickets_included', label: 'Entrance tickets included', kind: 'bool' },
@@ -124,7 +130,7 @@ export const FORMS = {
     ],
   },
   hotels: {
-    defaults: { status: 'draft', discount_percent: 0, stars: 3, rating: 4.6, price_from_usd: 0 },
+    defaults: { status: 'draft', discount_percent: 0, stars: 3, rating: 4.6, price_from_usd: 0, property_type: 'hotel', price_basis: 'room', gallery: [], photos_illustrative: false },
     sections: [
       { title: 'Basics', fields: [
         { k: 'destination', kind: 'destination', label: 'Destination', required: true },
@@ -132,10 +138,14 @@ export const FORMS = {
         { k: 'summary', label: 'Summary', kind: 'area', tr: true, required: true },
         { k: 'description', label: 'Description', kind: 'area', tr: true },
         { k: 'image_url', label: 'Photo', kind: 'image', help: 'Upload a photo or paste a link to a wide (landscape) image.' },
+        { k: 'gallery', label: 'More photos', kind: 'gallery', help: 'Upload several photos at once. Visitors slide through them on the hotel card and page.' },
+        { k: 'photos_illustrative', label: 'Photos show similar places, not this property itself', kind: 'bool', help: 'Shows a note under the photos. Untick it once you have uploaded the property’s own photos.' },
       ] },
       { title: 'Details', fields: [
-        { k: 'stars', label: 'Stars', kind: 'number' },
-        { k: 'price_from_usd', label: 'Price per night (USD)', kind: 'number', required: true },
+        { k: 'property_type', label: 'Type', kind: 'select:hotel,boutique,guesthouse,hostel' },
+        { k: 'stars', label: 'Stars', kind: 'number', help: 'Use 0 for guesthouses and hostels.' },
+        { k: 'price_from_usd', label: 'Price from (USD)', kind: 'number', required: true, help: 'The lowest usual nightly price. Visitors see it as an indicative “from” price.' },
+        { k: 'price_basis', label: 'Price is', kind: 'select:room,bed', help: 'Hostels and dorm rooms are priced per bed.' },
         { k: 'discount_percent', label: 'Discount (%)', kind: 'number', help: 'Shows the old price crossed out with the new price beside it. Leave 0 for no discount.' },
         { k: 'rating', label: 'Rating', kind: 'number' },
         { k: 'amenities', label: 'Amenities', kind: 'list', tr: true, help: 'One per line.' },
@@ -203,7 +213,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
     all.forEach(({ k, kind = 'text' }) => {
       if (kind === 'destination') return
       const stored = record ? record[k] : preset?.[k] ?? form.defaults[k]
-      out[k] = kind === 'list' ? toText(stored, 'list') : kind.startsWith('multi:') || kind === 'itinerary' || kind === 'costs' ? stored || [] : stored ?? (kind === 'bool' ? false : '')
+      out[k] = kind === 'list' ? toText(stored, 'list') : kind.startsWith('multi:') || kind === 'itinerary' || kind === 'costs' || kind === 'gallery' ? stored || [] : stored ?? (kind === 'bool' ? false : '')
     })
     out.destination_slug = record?.destination_slug ?? preset?.destination_slug ?? ''
     out.destination_name = record?.destination_name ?? preset?.destination_name ?? out.destination_name ?? ''
@@ -271,6 +281,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
     if (kind === 'itinerary') return <ItineraryField key={k} label={t(fl)} help={help && t(help)} value={base.itinerary} onChange={set} route={base.route} />
     if (kind === 'costs') return <CostsField key={k} label={t(fl)} help={help && t(help)} value={base.cost_items} onChange={set} />
 
+    if (kind === 'gallery') return <GalleryField key={k} label={t(fl)} help={help && t(help)} value={base[k]} onChange={set} />
     if (kind === 'image') return <ImageField key={k} label={t(fl)} help={help && t(help)} value={value} onChange={set} />
 
     if (kind === 'bool') {
@@ -299,7 +310,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
             })}</span>)
           : kind.startsWith('select:') ? (
             <select className="input" value={value ?? ''} onChange={(e) => set(e.target.value)}>
-              {kind.slice(7).split(',').map((o) => <option key={o} value={o}>{t(o === 'review' ? 'Awaiting review' : o === 'mixed' ? 'Car + walking' : o === 'car' ? 'Car tour' : o === 'walking' ? 'Walking tour' : o === 'train' ? 'Train tour' : cap(o))}</option>)}</select>)
+              {kind.slice(7).split(',').map((o) => <option key={o} value={o}>{t(o === 'hotel' ? 'Hotel' : o === 'boutique' ? 'Boutique hotel' : o === 'guesthouse' ? 'Guesthouse' : o === 'hostel' ? 'Hostel' : o === 'room' ? 'per room per night' : o === 'bed' ? 'per bed per night' : o === 'review' ? 'Awaiting review' : o === 'mixed' ? 'Car + walking' : o === 'car' ? 'Car tour' : o === 'walking' ? 'Walking tour' : o === 'train' ? 'Train tour' : cap(o))}</option>)}</select>)
           : <input type={kind === 'number' ? 'number' : 'text'} step="any" min={kind === 'number' ? 0 : undefined} required={required && isEnglish} className="input" placeholder={ph} value={value ?? ''} onChange={(e) => set(e.target.value)} />}
         {isEnglish && <Help>{help && t(help)}</Help>}
       </label>

@@ -5,8 +5,13 @@ Money rules (all in US dollars):
   balance   = total due - payments received
   profit    = total due - the costs booked against that tour
 Revenue and profit only count tours that are marked *completed*.
+
+Costs are added automatically: when a booking is confirmed or completed, the guide, the car, the hotel nights and (when the price
+includes them) the entrance tickets are worked out from the rates in Admin -> Accounting -> Cost rates, or from the tour's own
+cost template when it has one. What is left after these costs is the profit.
 """
 import csv
+import math
 from datetime import date
 from decimal import Decimal
 
@@ -57,6 +62,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     permission_classes = [permissions.IsAdminUser]
 
+    def perform_update(self, serializer):
+        serializer.save(auto=False)  # a cost the owner edited is no longer recalculated automatically
+
     def get_queryset(self):
         qs = super().get_queryset()
         params = self.request.query_params
@@ -106,9 +114,10 @@ def num(value):
     return float(value) if isinstance(value, Decimal) else value
 
 
-def row(booking):
+def row(booking, lang="en"):
+    from .names import service_name
     m = money(booking)
-    return {
+    return {"service_title_local": service_name(booking.service_type, booking.service_slug, booking.service_title, lang) if lang != "en" else booking.service_title,
         "id": booking.id, "reference": booking.reference, "service_type": booking.service_type, "service_slug": booking.service_slug,
         "service_title": booking.service_title, "full_name": booking.full_name, "email": booking.email, "phone": booking.phone,
         "guests": booking.guests, "status": booking.status, "travel_date": booking.travel_date, "end_date": booking.end_date,
@@ -137,7 +146,7 @@ def ledger(request):
     if params.get("q"):
         qs = qs.filter(Q(reference__icontains=params["q"]) | Q(full_name__icontains=params["q"]) | Q(service_title__icontains=params["q"]))
     start, end = parse_date(params.get("from")), parse_date(params.get("to"))
-    rows = [row(b) for b in qs if in_range(service_date(b), start, end)]
+    rows = [row(b, request.headers.get("X-Lang") or "en") for b in qs if in_range(service_date(b), start, end)]
     wanted = params.get("state")
     if wanted == "open":
         rows = [r for r in rows if r["state"] in ("unpaid", "partial")]
@@ -164,27 +173,92 @@ def booking_finance(request, pk):
     return Response(row(booking))
 
 
+def cost_rates():
+    """The saved cost rates (missing ones fall back to the defaults) as numbers."""
+    site = models.SiteContent.objects.first()
+    rates = dict(models.default_cost_rates(), **((site.cost_rates if site else None) or {}))
+    return {k: Decimal(str(rates[k] or 0)) for k in models.default_cost_rates()}
+
+
+def estimate_costs(booking):
+    """[(category, description, amount)] this booking is expected to cost us."""
+    rates = cost_rates()
+    due = money(booking)["total_due"]
+    tour = models.Tour.objects.filter(slug=booking.service_slug).first() if booking.service_type in ("tour", "selection") else None
+    guests = max(booking.guests, 1)
+    items = []
+    if booking.service_type == "hotel":
+        items.append(("hotel", "Hotel (partner rate)", due * rates["hotel_cost_percent"] / 100))
+    elif booking.service_type == "transport":
+        items.append(("transport", "Driver and car", due * rates["transport_cost_percent"] / 100))
+    elif tour and tour.cost_items:  # the tour's own template wins over the general rates
+        days = max(1, len(tour.itinerary) or 1)
+        categories = dict(models.Expense.CATEGORIES)
+        for item in tour.cost_items:
+            unit = Decimal(str(item.get("amount_usd") or 0))
+            quantity = guests if item.get("per") == "person" else days if item.get("per") == "day" else 1
+            items.append((item.get("category") if item.get("category") in categories else "other", str(item.get("name") or "Cost")[:200], unit * quantity))
+    elif tour:
+        days = max(1, len(tour.itinerary) or 1)
+        cars = math.ceil(guests / max(rates["car_seats"], 1))
+        nights = days - 1 if days > 1 else 0
+        rooms = math.ceil(guests / 2)
+        items.append(("guide", f"Guide: {days} day(s)", rates["guide_per_day"] * days))
+        items.append(("transport", f"Car and driver: {cars} car(s) x {days} day(s)", rates["car_per_day"] * cars * days))
+        if nights:
+            items.append(("hotel", f"Hotel: {nights} night(s) x {rooms} room(s)", rates["hotel_per_room_night"] * nights * rooms))
+        if rates["meals_per_person_day"]:
+            items.append(("meals", f"Meals: {guests} guest(s) x {days} day(s)", rates["meals_per_person_day"] * guests * days))
+        if tour.tickets_included:
+            fees = sum((Decimal(str(line.split("|")[1])) for line in tour.route if "|" in line and line.split("|")[1].strip().replace(".", "", 1).isdigit()), ZERO)
+            if fees:
+                items.append(("tickets", "Entrance tickets", fees * guests))
+    elif due:
+        items.append(("other", "Estimated costs of the service", due * rates["other_cost_percent"] / 100))
+    return [(c, d, a.quantize(CENTS)) for c, d, a in items if a > 0]
+
+
+def sync_costs(booking):
+    """Keep the automatic cost rows of a booking in step with its status: added when confirmed or completed, removed otherwise."""
+    booking.expenses.filter(auto=True).delete()
+    if booking.status not in ("confirmed", "completed"):
+        return
+    for category, description, amount in estimate_costs(booking):
+        models.Expense.objects.create(booking=booking, category=category, description=description[:200], amount_usd=amount, spent_on=service_date(booking), auto=True)
+
+
 @api_view(["POST"])
 @permission_classes([permissions.IsAdminUser])
 def auto_costs(request, pk):
-    """Fill the booking's expenses from the tour's cost template (replaces earlier automatic rows)."""
+    """Work the booking's costs out again now (replaces the automatic rows; costs added or edited by hand stay)."""
     booking = bookings_queryset().get(pk=pk)
-    tour = models.Tour.objects.filter(slug=booking.service_slug).first()
-    if not tour or not tour.cost_items:
-        return Response({"error": "This tour has no cost template yet. Add one in the tour editor under “Costs for accounting”."}, status=400)
-    days = max(1, len(tour.itinerary) or 1)
-    categories = dict(models.Expense.CATEGORIES)
-    booking.expenses.filter(auto=True).delete()
-    for item in tour.cost_items:
-        unit = Decimal(str(item.get("amount_usd") or 0))
-        per = item.get("per", "group")
-        quantity = booking.guests if per == "person" else days if per == "day" else 1
-        if unit * quantity > 0:
-            models.Expense.objects.create(
-                booking=booking, category=item.get("category") if item.get("category") in categories else "other",
-                description=str(item.get("name") or "Cost")[:200], amount_usd=unit * quantity, spent_on=service_date(booking), auto=True,
-            )
+    if booking.status not in ("confirmed", "completed"):
+        return Response({"error": "Costs are added once the booking is confirmed."}, status=400)
+    sync_costs(booking)
     return Response(row(bookings_queryset().get(pk=pk)))
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([permissions.IsAdminUser])
+def rates(request):
+    """The cost rates the automatic costs are worked out from. Saving them recalculates every confirmed and completed booking."""
+    site, _ = models.SiteContent.objects.get_or_create(pk=1)
+    if request.method == "PUT":
+        saved = dict(models.default_cost_rates(), **(site.cost_rates or {}))
+        for key in saved:
+            if key in request.data:
+                try:
+                    value = float(request.data[key])
+                except (TypeError, ValueError):
+                    return Response({"error": f"{key} must be a number."}, status=400)
+                if value < 0:
+                    return Response({"error": "Rates cannot be negative."}, status=400)
+                saved[key] = value
+        site.cost_rates = saved
+        site.save(update_fields=["cost_rates"])
+        for booking in bookings_queryset().filter(status__in=["confirmed", "completed"]):
+            sync_costs(booking)
+    return Response({k: num(v) for k, v in cost_rates().items()})
 
 
 def month_keys(end, count=12):
@@ -234,12 +308,16 @@ def summary(request):
         if k in trend:
             trend[k]["expenses"] += e.amount_usd
 
-    open_rows = sorted((row(b) for b, _, m in chosen if m["balance"] > 0), key=lambda r: -r["balance"])[:8]
+    open_rows = sorted((row(b, request.headers.get("X-Lang") or "en") for b, _, m in chosen if m["balance"] > 0), key=lambda r: -r["balance"])[:8]
+    coming = [(b, money(b)) for b in bookings_queryset().filter(status="confirmed") if in_range(service_date(b), start, end)]
+    expected_revenue = sum((m["total_due"] for _, m in coming), ZERO)
+    expected_costs = sum((m["costs"] for _, m in coming), ZERO)
     return Response({
         "revenue": num(revenue), "received": num(received), "outstanding": num(outstanding),
         "tour_costs": num(tour_costs), "general_costs": num(general_costs), "expenses": num(expenses), "profit": num(profit),
         "margin": round(float(profit / revenue * 100), 1) if revenue else 0,
         "completed": len(chosen), "settled": sum(1 for _, _, m in chosen if m["state"] == "settled"),
+        "expected": {"count": len(coming), "revenue": num(expected_revenue), "costs": num(expected_costs), "profit": num(expected_revenue - expected_costs)},
         "by_category": [{"category": k, "amount": num(v)} for k, v in sorted(by_category.items(), key=lambda kv: -kv[1])],
         "trend": [{k: num(v) for k, v in item.items()} for item in trend.values()],
         "receivables": open_rows,

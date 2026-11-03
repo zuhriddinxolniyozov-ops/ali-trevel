@@ -5,6 +5,7 @@
 
 Nothing here may ever break the request that triggered it, so every send is wrapped, logged and (by default) done in the background.
 """
+import html
 import json
 import logging
 import threading
@@ -23,33 +24,33 @@ TEXT = {
                "Hello {name},\n\nThank you! We received your booking request {ref} for “{service}”{when}, for {guests} traveler(s).\n"
                "Nothing is booked or charged yet: our team will reply by e-mail to confirm availability and the final price.\n{total}\n"
                "You can cancel free of charge up to 30 days before the start. Details: {site}/legal/cancellation\n\n"
-               "Questions? Reply to this e-mail or write to us on WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Questions? Reply to this e-mail or contact us:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "uz": ("So'rovingiz {ref} qabul qilindi — ALI TRAVEL",
                "Assalomu alaykum, {name}!\n\nRahmat! “{service}”{when} uchun {guests} kishilik {ref} raqamli bron so'rovingizni qabul qildik.\n"
                "Hozircha hech narsa band qilinmagan va to'lov olinmagan: jamoamiz joy borligini va yakuniy narxni elektron pochta orqali tasdiqlaydi.\n{total}\n"
                "Boshlanishidan 30 kun oldingacha bepul bekor qilishingiz mumkin. Batafsil: {site}/legal/cancellation\n\n"
-               "Savollar bormi? Shu xatga javob yozing yoki WhatsApp {phone} ga murojaat qiling.\n\nALI TRAVEL"),
+               "Savollar bormi? Bizga yozing yoki qo'ng'iroq qiling:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "ru": ("Мы получили ваш запрос {ref} — ALI TRAVEL",
                "Здравствуйте, {name}!\n\nСпасибо! Мы получили ваш запрос на бронирование {ref}: «{service}»{when}, {guests} чел.\n"
                "Пока ничего не забронировано и оплата не списана: наша команда ответит по электронной почте, подтвердив наличие мест и окончательную цену.\n{total}\n"
                "Бесплатная отмена возможна за 30 дней до начала. Подробнее: {site}/legal/cancellation\n\n"
-               "Есть вопросы? Ответьте на это письмо или напишите нам в WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Есть вопросы? Ответьте на это письмо или свяжитесь с нами:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
     },
     "confirmed": {
         "en": ("Your booking {ref} is confirmed — ALI TRAVEL",
-               "Hello {name},\n\nGood news: your booking {ref} for “{service}”{when} is confirmed.\nOur team will contact you with the final schedule and how to pay.\n\nQuestions? Reply to this e-mail or write to us on WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Hello {name},\n\nGood news: your booking {ref} for “{service}”{when} is confirmed.\nOur team will contact you with the final schedule and how to pay.\n\nQuestions? Reply to this e-mail or contact us:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "uz": ("{ref} bron tasdiqlandi — ALI TRAVEL",
-               "Assalomu alaykum, {name}!\n\nYaxshi xabar: “{service}”{when} uchun {ref} raqamli broningiz tasdiqlandi.\nJamoamiz yakuniy jadval va to'lov usuli haqida siz bilan bog'lanadi.\n\nSavollar bormi? Shu xatga javob yozing yoki WhatsApp {phone} ga murojaat qiling.\n\nALI TRAVEL"),
+               "Assalomu alaykum, {name}!\n\nYaxshi xabar: “{service}”{when} uchun {ref} raqamli broningiz tasdiqlandi.\nJamoamiz yakuniy jadval va to'lov usuli haqida siz bilan bog'lanadi.\n\nSavollar bormi? Bizga yozing yoki qo'ng'iroq qiling:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "ru": ("Ваше бронирование {ref} подтверждено — ALI TRAVEL",
-               "Здравствуйте, {name}!\n\nХорошая новость: ваше бронирование {ref} — «{service}»{when} — подтверждено.\nНаша команда свяжется с вами по итоговому расписанию и способу оплаты.\n\nЕсть вопросы? Ответьте на это письмо или напишите нам в WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Здравствуйте, {name}!\n\nХорошая новость: ваше бронирование {ref} — «{service}»{when} — подтверждено.\nНаша команда свяжется с вами по итоговому расписанию и способу оплаты.\n\nЕсть вопросы? Ответьте на это письмо или свяжитесь с нами:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
     },
     "cancelled": {
         "en": ("Your booking {ref} was cancelled — ALI TRAVEL",
-               "Hello {name},\n\nYour booking {ref} for “{service}” has been cancelled. If this is a surprise, or you would like to travel on another date, just reply to this e-mail or write to us on WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Hello {name},\n\nYour booking {ref} for “{service}” has been cancelled. If this is a surprise, or you would like to travel on another date, just reply to this e-mail or contact us:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "uz": ("{ref} bron bekor qilindi — ALI TRAVEL",
-               "Assalomu alaykum, {name}!\n\n“{service}” uchun {ref} raqamli broningiz bekor qilindi. Agar bu kutilmagan bo'lsa yoki boshqa sanada sayohat qilmoqchi bo'lsangiz, shu xatga javob yozing yoki WhatsApp {phone} ga murojaat qiling.\n\nALI TRAVEL"),
+               "Assalomu alaykum, {name}!\n\n“{service}” uchun {ref} raqamli broningiz bekor qilindi. Agar bu kutilmagan bo'lsa yoki boshqa sanada sayohat qilmoqchi bo'lsangiz, bizga yozing yoki qo'ng'iroq qiling:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
         "ru": ("Ваше бронирование {ref} отменено — ALI TRAVEL",
-               "Здравствуйте, {name}!\n\nВаше бронирование {ref} — «{service}» — отменено. Если это неожиданность или вы хотите поехать в другую дату, просто ответьте на это письмо или напишите нам в WhatsApp {phone}.\n\nALI TRAVEL"),
+               "Здравствуйте, {name}!\n\nВаше бронирование {ref} — «{service}» — отменено. Если это неожиданность или вы хотите поехать в другую дату, просто ответьте на это письмо или свяжитесь с нами:\n📞 {phone}\n✈️ Telegram: {telegram}\n✉️ {email}\n\nALI TRAVEL"),
     },
     "completed_tg": {
         "en": ("Thank you for travelling with ALI TRAVEL",
@@ -70,10 +71,10 @@ TEXT = {
 }
 
 
-def _background(fn, *args):
+def _background(fn, *args, **kwargs):
     def safe():
         try:
-            fn(*args)
+            fn(*args, **kwargs)
         except Exception:  # a failed notification must never break the site
             log.exception("Notification failed")
 
@@ -96,9 +97,11 @@ def _send_email(subject, body, to, reply_to=None):
     EmailMultiAlternatives(subject, body, settings.DEFAULT_FROM_EMAIL, to, reply_to=reply_to or None).send()
 
 
-def telegram_send(chat_id, text, markup=None):
-    """Send one Telegram message from the bot (with an inline keyboard when `markup` is given)."""
+def telegram_send(chat_id, text, markup=None, as_html=False):
+    """Send one Telegram message from the bot (with an inline keyboard when `markup` is given; `as_html` allows <b>, <i>, <code>, <blockquote>)."""
     payload = {"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True}
+    if as_html:
+        payload["parse_mode"] = "HTML"
     if markup:
         payload["reply_markup"] = markup
     request = urllib.request.Request(
@@ -117,19 +120,21 @@ def team_chat_ids():
     return list(dict.fromkeys(ids))
 
 
-def _send_telegram(text):
+def _send_telegram(text, markup=None, as_html=False):
     """Alert the team (and nobody else) in Telegram."""
     if not settings.TELEGRAM_BOT_TOKEN:
         return
     for chat in team_chat_ids():
         try:
-            telegram_send(chat, text)
+            telegram_send(chat, text, markup, as_html)
         except Exception:
             log.exception("Telegram alert to %s failed", chat)
 
 
-def _tell_the_team(subject, text, reply_to=None):
-    for send in (lambda: _send_email(subject, text, settings.NOTIFY_EMAILS, [reply_to] if reply_to else None), lambda: _send_telegram(f"{subject}\n\n{text}")):
+def _tell_the_team(subject, text, reply_to=None, markup=None, telegram_html=None):
+    """E-mail the team in plain English; in Telegram send `telegram_html` (Uzbek, formatted) when given, else the same plain text."""
+    telegram = (lambda: _send_telegram(telegram_html, markup, True)) if telegram_html else (lambda: _send_telegram(f"{subject}\n\n{text}", markup))
+    for send in (lambda: _send_email(subject, text, settings.NOTIFY_EMAILS, [reply_to] if reply_to else None), telegram):
         try:
             send()
         except Exception:
@@ -159,21 +164,27 @@ WHEN = {"en": " on {d}", "uz": " ({d} sanasi)", "ru": " на {d}"}
 def _fields(booking):
     when = WHEN.get(booking["lang"], WHEN["en"]).format(d=booking["date"]) if booking["date"] else ""
     return dict(ref=booking["ref"], name=booking["name"], service=booking["service"], guests=booking["guests"], site=settings.SITE_URL,
-                phone=booking["phone_team"], when=when, review_url=booking["review_url"], total=booking["total_line"])
+                phone=booking["phone_team"], telegram=booking["telegram_link"], email=booking["team_email"], when=when, review_url=booking["review_url"], total=booking["total_line"])
 
 
 def _booking_data(booking):
     """Copy what the messages need into plain values, so a background thread never touches the database."""
     from .models import SiteContent
-    phone = (SiteContent.objects.filter(pk=1).values_list("phone_primary", flat=True).first() or "+998942222498")
+    site = SiteContent.objects.filter(pk=1).first()
+    phone = (site.phone_primary if site else "") or "+998942222498"
+    telegram_link = (site.telegram_url if site and site.telegram_url else "") or "https://t.me/al1_travel1"
+    team_email = (site.email if site and site.email else "") or "alitravel004@gmail.com"
     total = f"\nEstimated total: ${booking.estimated_total_usd:,.2f} (sample rate, confirmed by our team).\n" if booking.estimated_total_usd else ""
     return {
         "ref": booking.reference, "name": booking.full_name, "email": booking.email, "phone": booking.phone, "service": booking.service_title,
         "date": booking.travel_date.isoformat() if booking.travel_date else "", "guests": booking.guests, "lang": booking.lang or "en",
         "details": (booking.details_summary or "")[:1500], "requests": (booking.special_requests or "")[:600], "status": booking.status,
-        "total": f"${booking.estimated_total_usd:,.2f}" if booking.estimated_total_usd else "-", "phone_team": phone, "total_line": total,
+        "total": f"${booking.estimated_total_usd:,.2f}" if booking.estimated_total_usd else "-", "phone_team": phone, "telegram_link": telegram_link, "team_email": team_email, "total_line": total,
         "review_url": f"{settings.SITE_URL}/tours/{booking.service_slug}" if booking.service_slug else settings.SITE_URL,
         "chat": booking.telegram_chat_id, "source": "Telegram bot" if booking.telegram_chat_id else "Website",
+        "type": booking.service_type, "end": booking.end_date.strftime("%d.%m.%Y") if booking.end_date else "",
+        "service_uz": uz_name(booking.service_type, booking.service_slug, booking.service_title),
+        "estimate": f"${booking.estimated_total_usd:,.0f}" if booking.estimated_total_usd else "",
     }
 
 
@@ -200,7 +211,47 @@ def _traveller_telegram(kind, data):
         stars = {"inline_keyboard": [[{"text": f"{n}⭐", "callback_data": f"rv:{data['ref']}:{n}"} for n in range(1, 6)]]}
         return telegram_send(data["chat"], f"{subject}\n\n{body}", stars)
     subject, body = _traveller_text(kind, data)
+    body = body.replace("Reply to this e-mail or contact us:", "Contact us:").replace("reply to this e-mail or contact us:", "contact us:")
+    body = body.replace("Ответьте на это письмо или свяжитесь с нами:", "Свяжитесь с нами:").replace("просто ответьте на это письмо или свяжитесь с нами:", "просто свяжитесь с нами:")
     telegram_send(data["chat"], f"{subject}\n\n{body}")
+
+
+KINDS = {"tour": "🧳 Tur", "hotel": "🏨 Mehmonxona", "transport": "🚗 Transport", "plan": "🗺 Sayohat rejasi", "selection": "🧳 Tanlangan turlar"}
+LANGUAGES_UZ = {"uz": "O'zbekcha", "en": "Inglizcha", "ru": "Ruscha", "fr": "Fransuzcha", "de": "Nemischa", "es": "Ispancha"}
+
+
+def _uz_date(value):
+    return value.strftime("%d.%m.%Y") if value else "—"
+
+
+def _booking_html(data):
+    """The new-booking alert for the team's Telegram: in Uzbek, with bold labels and a few emojis."""
+    e = lambda value: html.escape(str(value), quote=False)
+    date = data["date"] and f"{data['date'][8:10]}.{data['date'][5:7]}.{data['date'][:4]}"
+    when = f"{date} → {data['end']}" if date and data["end"] else (date or "—")
+    lines = [f"🆕 <b>Yangi bron so'rovi</b>   <code>{e(data['ref'])}</code>",
+             f"📍 Manba: {'🤖 Telegram bot' if data['chat'] else '🌐 Sayt'}", "",
+             f"<b>{KINDS.get(data['type'], '🧳 Xizmat')}:</b> {e(data['service_uz'])}",
+             f"📅 <b>Sana:</b> {e(when)}",
+             f"👥 <b>Mehmonlar:</b> {data['guests']}"]
+    if data["estimate"]:
+        lines.append(f"💵 <b>Taxminiy jami:</b> {data['estimate']} <i>(namunaviy narx, jamoa tasdiqlaydi)</i>")
+    lines += ["", f"👤 <b>Ism:</b> {e(data['name'])}", f"📞 <b>Telefon:</b> {e(data['phone'])}"]
+    if not data["email"].endswith(".invalid"):
+        lines.append(f"✉️ <b>Email:</b> {e(data['email'])}")
+    lines.append(f"🌐 <b>Til:</b> {LANGUAGES_UZ.get(data['lang'], data['lang'])}")
+    if data["details"]:
+        lines += ["", "📝 <b>Tafsilotlar</b>", f"<blockquote expandable>{e(data['details'][:1100])}</blockquote>"]
+    if data["requests"]:
+        lines += ["", "💬 <b>Maxsus so'rovlar</b>", f"<blockquote>{e(data['requests'][:500])}</blockquote>"]
+    lines += ["", f"🔗 <a href=\"{e(settings.SITE_URL)}/admin/bookings\">Admin panelda ochish</a>"]
+    return "\n".join(lines)
+
+
+def uz_name(kind, slug, fallback):
+    """The Uzbek name of a booked service for the team's alerts (the booking stores the English title)."""
+    from .names import service_name
+    return service_name(kind, slug, fallback, "uz")
 
 
 def _tell_about_booking(data):
@@ -211,7 +262,8 @@ def _tell_about_booking(data):
     if data["requests"]:
         text += f"\nSpecial requests:\n{data['requests']}\n"
     text += f"\nOpen: {settings.SITE_URL}/admin/bookings"
-    _tell_the_team(f"New booking request {data['ref']} ({data['source']})", text, reply_to=None if data["email"].endswith(".invalid") else data["email"])
+    decide = {"inline_keyboard": [[{"text": "✅ Tasdiqlash", "callback_data": f"bk:ok:{data['ref']}"}, {"text": "❌ Rad etish", "callback_data": f"bk:no:{data['ref']}"}]]}  # the team answers in the bot
+    _tell_the_team(f"New booking request {data['ref']} ({data['source']})", text, reply_to=None if data["email"].endswith(".invalid") else data["email"], markup=decide, telegram_html=_booking_html(data))
 
 
 def booking_created(booking):
@@ -228,17 +280,43 @@ def booking_status_changed(booking):
         _background(_traveller_telegram, booking.status, data)
 
 
+def arrival_received(booking):
+    """Tell the team when and how a traveller reaches Samarkand airport."""
+    when = " ".join(x for x in (booking.arrival_date.isoformat() if booking.arrival_date else "", booking.arrival_time.strftime("%H:%M") if booking.arrival_time else "") if x)
+    lines = [f"Booking: {booking.reference} ({booking.service_title})", f"Traveller: {booking.full_name} · {booking.phone}", f"Tour date: {booking.travel_date or '-'}",
+             f"Arrives at Samarkand airport: {when or '-'}", f"Flight / train: {booking.arrival_flight or '-'}"]
+    if booking.arrival_note:
+        lines.append(booking.arrival_note)
+    text = "\n".join(lines) + f"\n\nOpen: {settings.SITE_URL}/admin/bookings"
+    e = lambda value: html.escape(str(value), quote=False)
+    card = ["✈️ <b>Yetib kelish ma'lumoti</b>   <code>" + e(booking.reference) + "</code>", "",
+            f"<b>{e(uz_name(booking.service_type, booking.service_slug, booking.service_title))}</b>", f"👤 {e(booking.full_name)} · 📞 {e(booking.phone)}", f"📅 Tur sanasi: {_uz_date(booking.travel_date)}", "",
+            f"🛬 <b>Samarqand aeroportiga:</b> {e(_uz_date(booking.arrival_date))}" + (f", {booking.arrival_time.strftime('%H:%M')}" if booking.arrival_time else ""),
+            f"🎫 <b>Reys / poyezd:</b> {e(booking.arrival_flight or '—')}"]
+    if booking.arrival_note:
+        card.append(f"💬 {e(booking.arrival_note)}")
+    _background(_tell_the_team, f"Arrival details for {booking.reference}", text, None if booking.email.endswith(".invalid") else booking.email, telegram_html="\n".join(card))
+
+
 def booking_cancelled_by_traveller(booking):
     data = _booking_data(booking)
     _background(_tell_the_team, f"Booking {data['ref']} was cancelled by the traveller",
-                f"{data['name']} <{data['email']}> cancelled {data['service']} ({data['date'] or 'no date'}).\n\nOpen: {settings.SITE_URL}/admin/bookings", data["email"])
+                f"{data['name']} <{data['email']}> cancelled {data['service']} ({data['date'] or 'no date'}).\n\nOpen: {settings.SITE_URL}/admin/bookings", data["email"],
+                telegram_html=f"❌ <b>Bron bekor qilindi</b>   <code>{html.escape(data['ref'])}</code>\n\nSayohatchi o'z so'rovini bekor qildi:\n<b>{html.escape(data['service_uz'])}</b>\n👤 {html.escape(data['name'])} · 📞 {html.escape(data['phone'])}\n📅 {html.escape(data['date'] or '—')}")
     booking_status_changed(booking)
 
 
 def message_received(message):
     text = f"From: {message.full_name} <{message.email}>\nPhone: {message.phone or '-'}\nSubject: {message.subject or '-'}\n\n{message.message[:2000]}\n\nOpen: {settings.SITE_URL}/admin/enquiries"
     synthetic = message.email.endswith(".invalid")  # messages typed into the Telegram bot have no real e-mail address
-    _background(_tell_the_team, f"New message from {message.full_name}", text, None if synthetic else message.email)
+    e = lambda value: html.escape(str(value), quote=False)
+    card = ["✉️ <b>Yangi xabar</b>", "", f"👤 <b>{e(message.full_name)}</b>" + (" · 🤖 Telegram bot" if synthetic else ""), f"📞 {e(message.phone or '—')}"]
+    if not synthetic:
+        card.append(f"📧 {e(message.email)}")
+    if message.subject:
+        card.append(f"📌 {e(message.subject)}")
+    card += ["", f"💬 <blockquote>{e(message.message[:1500])}</blockquote>", "", f"🔗 <a href=\"{e(settings.SITE_URL)}/admin/enquiries\">Murojaatlarni ochish</a>"]
+    _background(_tell_the_team, f"New message from {message.full_name}", text, None if synthetic else message.email, telegram_html="\n".join(card))
 
 
 def _thank_reviewer(data):
@@ -259,7 +337,13 @@ def _social_links():
 def review_received(review):
     text = (f"{'★' * review.rating} {review.name}{', ' + review.country if review.country else ''}\nTour: {review.tour_title or review.tour_slug}\n"
             f"{'Verified traveller' if review.verified else 'Not verified'}\n\n{review.text[:1500]}\n\nPublish it: {settings.SITE_URL}/admin/reviews")
-    _background(_tell_the_team, "New review waiting for your approval", text)
+    stars = "⭐" * review.rating
+    e = lambda value: html.escape(str(value), quote=False)
+    card = [f"📝 <b>Yangi sharh tasdiq kutmoqda</b>", "", f"{stars}  <b>{e(review.name)}</b>{', ' + e(review.country) if review.country else ''}",
+            f"🧳 <b>Tur:</b> {e(uz_name('tour', review.tour_slug, review.tour_title or review.tour_slug))}",
+            "✅ Tasdiqlangan sayohatchi" if review.verified else "⚪ Tasdiqlanmagan", "", f"💬 <blockquote>{e(review.text[:1200])}</blockquote>", "",
+            f"🔗 <a href=\"{e(settings.SITE_URL)}/admin/reviews\">Sharhlarni ochish va nashr qilish</a>"]
+    _background(_tell_the_team, "New review waiting for your approval", text, telegram_html="\n".join(card))
     if review.email and not review.email.endswith(".invalid"):  # thank the reviewer at once and suggest following us
         _background(_thank_reviewer, {"name": review.name, "email": review.email, "tour": review.tour_title or review.tour_slug,
                                       "lang": review.lang or "en", "links": _social_links()})

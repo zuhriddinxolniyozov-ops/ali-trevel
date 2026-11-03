@@ -54,3 +54,9 @@
   .btn-primary { @apply inline-flex h-11 items-center justify-center gap-2 rounded-full bg-navy px-6 text-[13px] font-medium text-ivory transition-colors hover:bg-navy-deep disabled:opacity-70; }
   .btn-outline { @apply inline-flex h-11 items-center justify-center gap-2 rounded-full border border-navy/20 px-6 text-[13px] font-medium text-navy transition-colors hover:border-navy hover:bg-navy hover:text-ivory; }
 }
+
+@keyframes silk-flow { to { stroke-dashoffset: -48; } }
+.silk-flow { animation: silk-flow 2.4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .silk-flow { animation: none; } }
+
+.side-scroll { scrollbar-width: thin; scrollbar-color: rgba(15, 40, 90, 0.25) transparent; }

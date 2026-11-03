@@ -7,7 +7,7 @@ import { printSection } from '../components/DayPlan'
 import { DOCS, DOC_LANGS, PARTNER_TYPES, buildDocument, subjectOf } from './partnerTemplates'
 
 const TYPE_LABEL = { hotel: 'Hotel / guesthouse', guide: 'Guide', transport: 'Driver / transfers' }
-const DOC_LABEL = { proposal: 'Cooperation proposal', email: 'Official email', inquiry: 'Price request letter', agreement: 'Cooperation agreement' }
+const DOC_LABEL = { proposal: 'Cooperation proposal', email: 'Official email', inquiry: 'Price request letter', agreement: 'Cooperation agreement', photos: 'Photo permission request' }
 const DEFAULT_CITY = { en: 'Samarkand', uz: 'Samarqand', ru: 'Самарканд' }
 const PARTNER_TO_TYPE = { 'Hotel / guesthouse': 'hotel', Guide: 'guide', 'Driver / transfers': 'transport' }
 const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }

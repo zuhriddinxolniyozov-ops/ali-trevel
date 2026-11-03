@@ -53,6 +53,12 @@ def default_group_tiers():
             {"min": 4, "percent": 150}, {"min": 2, "percent": 180}, {"min": 1, "percent": 220}]
 
 
+def default_cost_rates():
+    """What a tour costs the company, in US dollars. Used to add the costs of every confirmed tour automatically (see accounting.py)."""
+    return {"guide_per_day": 30, "car_per_day": 60, "car_seats": 4, "hotel_per_room_night": 25, "meals_per_person_day": 0,
+            "hotel_cost_percent": 80, "transport_cost_percent": 75, "other_cost_percent": 70}
+
+
 class SiteContent(models.Model):
     """Single-row site settings and editable homepage copy."""
 
@@ -70,6 +76,8 @@ class SiteContent(models.Model):
     youtube_url = models.URLField(blank=True)
     group_pricing_tiers = models.JSONField(default=default_group_tiers, blank=True)
     analytics_id = models.CharField(max_length=40, blank=True)  # Google Analytics 4 measurement id such as G-XXXXXXXXXX
+    extra_contacts = models.JSONField(default=list, blank=True)  # more lines for the footer and contact page: [{"label", "value", "url"}]
+    cost_rates = models.JSONField(default=default_cost_rates, blank=True)  # see default_cost_rates
 
 
 class Destination(Catalogued):
@@ -134,6 +142,10 @@ class Tour(Catalogued, Discountable):
     featured = models.BooleanField(default=False)
     is_demo = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
+    # Exact location of a place (a single place of a tour): shown on a map with a link to Google Maps.
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_note = models.CharField(max_length=200, blank=True)  # address or how to find it, e.g. "Registan Street, next to the ticket office"
 
     class Meta:
         ordering = ["-featured", "-created"]
@@ -155,6 +167,12 @@ class Hotel(Catalogued, Discountable):
     amenities = models.JSONField(default=list, blank=True)
     rating = models.DecimalField(max_digits=2, decimal_places=1, default=4.6)
     is_demo = models.BooleanField(default=True)
+    gallery = models.JSONField(default=list, blank=True)  # more photos after the cover (image_url); shown as a slider
+    PROPERTY_TYPES = [("hotel", "Hotel"), ("boutique", "Boutique hotel"), ("guesthouse", "Guesthouse"), ("hostel", "Hostel")]
+    property_type = models.CharField(max_length=12, choices=PROPERTY_TYPES, default="hotel")
+    PRICE_BASES = [("room", "per room per night"), ("bed", "per bed per night")]
+    price_basis = models.CharField(max_length=6, choices=PRICE_BASES, default="room")  # hostels are priced per dorm bed
+    photos_illustrative = models.BooleanField(default=False)  # the photos show the destination, not this property itself
 
     def __str__(self):
         return self.name
@@ -216,6 +234,11 @@ class BookingRequest(models.Model):
     admin_notes = models.TextField(blank=True)
     lang = models.CharField(max_length=5, blank=True)  # the language the traveller was reading, for e-mails
     telegram_chat_id = models.BigIntegerField(null=True, blank=True)  # set when the request was made in the Telegram bot
+    # When and how the traveller reaches Samarkand airport (sent after booking, so the guide can meet them).
+    arrival_date = models.DateField(null=True, blank=True)
+    arrival_time = models.TimeField(null=True, blank=True)
+    arrival_flight = models.CharField(max_length=60, blank=True)  # flight or train number
+    arrival_note = models.CharField(max_length=300, blank=True)  # free text, e.g. typed in the Telegram bot
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -410,10 +433,18 @@ class TelegramUser(models.Model):
     lang = models.CharField(max_length=5, blank=True)
     first_name = models.CharField(max_length=120, blank=True)
     username = models.CharField(max_length=80, blank=True)
+    last_name = models.CharField(max_length=120, blank=True)
+    phone = models.CharField(max_length=40, blank=True)  # the number the traveller shared or typed when they booked or asked
+    contact_name = models.CharField(max_length=160, blank=True)  # the name on the contact they shared (more reliable than the profile name)
     state = models.CharField(max_length=20, blank=True)  # "" or "asking" (the next message is a request for the team)
     state_data = models.CharField(max_length=200, blank=True)  # e.g. the slug of the tour they want to request
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+
+    @property
+    def display_name(self):
+        """The name to write in bookings and in the customers list."""
+        return self.contact_name or " ".join(x for x in (self.first_name, self.last_name) if x) or (f"@{self.username}" if self.username else "")
 
     def __str__(self):
         return f"{self.first_name or self.username or self.chat_id} ({self.lang or '?'})"

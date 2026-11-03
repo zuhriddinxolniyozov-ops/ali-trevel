@@ -3,6 +3,7 @@ import { api } from '../api'
 import { discounted, exactMoney, useAuth, useSettings } from '../hooks'
 import { groupPercent } from '../groupPricing'
 import { useT } from '../i18n'
+import ArrivalForm from './ArrivalForm'
 import GroupPrice from './GroupPrice'
 import { EMAIL_RE, Field, Honeypot, PHONE_RE, Photo, Spinner, Success } from './ui'
 
@@ -16,7 +17,7 @@ const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new
  * With `groupPriced` that price is for a group of 20 or more and smaller groups pay more per person (tiers from the admin panel);
  * `priceFor(guests, tiers)` replaces the per-person calculation, used when several tours are booked together.
  */
-export default function BookingForm({ serviceType, serviceSlug = '', serviceTitle, estimatedTotal = 0, perGuest = true, extra = {}, intro, onSubmitted, hotels = [], defaultNights = 1, mode = 'standard', groupPriced = false, priceFor = null }) {
+export default function BookingForm({ serviceType, serviceSlug = '', serviceTitle, estimatedTotal = 0, perGuest = true, extra = {}, intro, onSubmitted, hotels = [], defaultNights = 1, mode = 'standard', groupPriced = false, priceFor = null, unit = 'room', stayIncluded = false }) {
   const t = useT()
   const { user } = useAuth()
   const { settings } = useSettings()
@@ -24,7 +25,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
   const tiers = settings.group_pricing_tiers
   const grouped = (groupPriced || !!priceFor) && !isStay
   const perPersonAt = (g) => (priceFor ? priceFor(g, tiers) : estimatedTotal * (groupPriced ? groupPercent(tiers, g) / 100 : 1))
-  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights, website: '' })
+  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights, website: '', hotel_class: '', car_class: '' })
   const [errors, setErrors] = useState({})
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')
@@ -32,6 +33,8 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
   const [sent, setSent] = useState(null)
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
   const hotel = hotels.find((h) => h.slug === f.hotel)
+  const upgrade = stayIncluded && (f.hotel_class || f.car_class)  // a higher class than the one in the price: costs extra
+  const beds = isStay ? unit === 'bed' : hotel?.price_basis === 'bed'  // hostels are priced per dorm bed, not per room
 
   const money = useMemo(() => {
     const guests = Number(f.guests) || 1
@@ -57,9 +60,10 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     if (Object.keys(err).length) return
     setState('saving'); setMessage('')
     const lines = []
-    if (isStay) lines.push(`Stay: ${money.nights} night(s) · ${f.rooms} room(s)`)
+    if (isStay) lines.push(`Stay: ${money.nights} night(s) · ${f.rooms} ${beds ? 'bed(s)' : 'room(s)'}`)
     if (grouped) lines.push(`Group price: ${exactMoney(perPersonAt(Number(f.guests) || 1))} per person for ${Number(f.guests) || 1} traveler(s)`)
-    if (hotel) lines.push(`Hotel: ${hotel.name} · ${f.nights} night(s) · ${f.rooms} room(s) · ${exactMoney(money.hotel)}`)
+    if (stayIncluded) lines.push(`Hotels: ${f.hotel_class ? `${f.hotel_class}-star hotels requested (extra payment applies)` : 'the most affordable hotels, as in the price'}. Car: ${f.car_class ? 'premium class requested (extra payment applies)' : 'standard class, as in the price'}.`)
+    if (hotel) lines.push(`Hotel: ${hotel.name} · ${f.nights} night(s) · ${f.rooms} ${beds ? 'bed(s)' : 'room(s)'} · ${exactMoney(money.hotel)}`)
     try {
       const res = await api.post('/bookings-submit/', {
         service_type: serviceType, service_slug: serviceSlug, service_title: serviceTitle,
@@ -77,6 +81,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     return (
       <div>
         <Success title="Request received">{t('Reference')} <span className="font-mono text-[12.5px]">{reference}</span> — {t('status pending. Nothing is booked or charged yet: our team will reply by email to confirm availability and the final price.')}</Success>
+        {serviceType === 'tour' && <ArrivalForm reference={reference} email={f.email.trim()} date={f.travel_date} />}
         {grouped && sent && <GroupPrice tiers={tiers} priceAt={perPersonAt} guests={sent.guests} perPerson={sent.perPerson} total={sent.total} />}
       </div>
     )
@@ -98,7 +103,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Guests"><input type="number" min="1" max="30" className="input" value={f.guests} onChange={set('guests')} /></Field>
-              <Field label="Rooms"><input type="number" min="1" max="15" className="input" value={f.rooms} onChange={set('rooms')} /></Field>
+              <Field label={beds ? 'Beds' : 'Rooms'}><input type="number" min="1" max="15" className="input" value={f.rooms} onChange={set('rooms')} /></Field>
             </div>
           </>
         ) : (
@@ -108,13 +113,30 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
           </div>
         )}
 
-        {hotels.length > 0 && (
+        {stayIncluded && (
+          <fieldset className="rounded-sm border border-navy/12 bg-white/70 p-3">
+            <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Hotel and car class')}</legend>
+            <p className="rounded-sm bg-gold/15 px-3 py-2 text-[12.5px] leading-snug text-navy">{t('The price includes the most affordable hotels and a standard taxi. Hotels of 3, 4 or 5 stars and a premium-class taxi cost extra.')}</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Hotel class"><select className="input" value={f.hotel_class} onChange={set('hotel_class')}>
+                <option value="">{t('Included: the most affordable hotel')}</option>
+                {['3', '4', '5'].map((n) => <option key={n} value={n}>{t('{n}-star hotel (extra payment)', { n })}</option>)}
+              </select></Field>
+              <Field label="Car class"><select className="input" value={f.car_class} onChange={set('car_class')}>
+                <option value="">{t('Included: standard taxi')}</option>
+                <option value="premium">{t('Premium-class taxi (extra payment)')}</option>
+              </select></Field>
+            </div>
+            {upgrade && <p role="status" className="mt-3 rounded-sm border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] leading-snug text-destructive">{t('Extra payment applies: you chose a higher class than the one in the price. Our team confirms the exact extra amount before anything is booked or charged.')}</p>}
+          </fieldset>
+        )}
+        {!stayIncluded && hotels.length > 0 && (
           <fieldset className="rounded-sm border border-navy/12 bg-white/70 p-3">
             <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Hotel (optional)')}</legend>
             <select aria-label={t('Choose a hotel')} className="input !mt-1" value={f.hotel} onChange={set('hotel')}>
               <option value="">{t('No hotel — I will arrange my own')}</option>
               {hotels.map((h) => (
-                <option key={h.slug} value={h.slug}>{h.name} · {'★'.repeat(h.stars)} · {exactMoney(discounted(h.price_from_usd, h.effective_discount))} / {t('night')}</option>
+                <option key={h.slug} value={h.slug}>{h.name} · {'★'.repeat(h.stars)} · {exactMoney(discounted(h.price_from_usd, h.effective_discount))} / {t(h.price_basis === 'bed' ? 'bed per night' : 'night')}</option>
               ))}
             </select>
             {hotel && (
@@ -125,7 +147,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Nights"><input type="number" min="1" max="30" className="input" value={f.nights} onChange={set('nights')} /></Field>
-                  <Field label="Rooms"><input type="number" min="1" max="15" className="input" value={f.rooms} onChange={set('rooms')} /></Field>
+                  <Field label={beds ? 'Beds' : 'Rooms'}><input type="number" min="1" max="15" className="input" value={f.rooms} onChange={set('rooms')} /></Field>
                 </div>
                 <p className="text-[12px] text-ink">{t('If your tour already includes accommodation, our team adjusts the price to the hotel you choose.')}</p>
               </div>
@@ -137,6 +159,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
       {total > 0 && (
         <p className="mt-3 text-[12.5px] text-ink">{t('Estimated total')}: <span className="font-mono text-[15px] text-navy">{exactMoney(total)}</span>
           {money.hotel > 0 && <span className="block">{t('Tour')} {exactMoney(money.base)} + {t('Hotel')} {exactMoney(money.hotel)}</span>}
+          {upgrade && <span className="block text-destructive">{t('Without the extra payment for the higher class')}</span>}
           <span className="block">({t('sample rate, confirmed by our team')})</span></p>
       )}
       {grouped && total > 0 && <GroupPrice tiers={tiers} priceAt={perPersonAt} guests={f.guests} perPerson={perPersonAt(Number(f.guests) || 1)} total={money.base} />}

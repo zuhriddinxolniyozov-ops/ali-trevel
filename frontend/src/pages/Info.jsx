@@ -4,7 +4,7 @@ import { useSettings } from '../hooks'
 import { useT } from '../i18n'
 import { EMAIL_RE, Field, Honeypot, PageHero, Spinner, Success } from '../components/ui'
 import Seo from '../components/Seo'
-import { Phones, Socials } from '../components/Layout'
+import { ExtraContacts, Phones, Socials } from '../components/Layout'
 import { IMAGES } from '../data'
 
 const ABOUT_POINTS = ['Licensed local guides', 'Family-run guesthouses we know personally', 'Written confirmation before you pay anything', 'English-speaking coordinator on WhatsApp']
@@ -51,6 +51,7 @@ export function Contact() {
       <div className="shell grid gap-12 py-16 lg:grid-cols-[1fr_1.3fr] lg:py-24">
         <div><Phones settings={settings} />{settings.email && <p className="mt-4"><a href={`mailto:${settings.email}`} className="break-all text-turquoise-deep">{settings.email}</a></p>}
           {settings.address && <p className="mt-4 text-ink">{settings.address}</p>}{settings.hours && <p className="mt-1 text-[14px] text-ink">{settings.hours}</p>}
+          <ExtraContacts settings={settings} className="mt-4" />
           <Socials settings={settings} className="mt-6" /></div>
         {state === 'done' ? <Success title="Message received">{t('Thank you — we will reply by email soon.')}</Success> : (
           <form onSubmit={submit} noValidate className="space-y-4 rounded-sm border border-navy/12 bg-sand-soft/40 p-6">

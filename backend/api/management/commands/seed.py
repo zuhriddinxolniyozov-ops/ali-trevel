@@ -3,7 +3,8 @@ from django.core.management.base import BaseCommand
 from api import models
 from api.management.commands import legal_cancellation, legal_privacy, legal_terms
 from api.management.commands.seed_translations import LANGS, PHRASES
-from api.management.commands import seed_experiences, seed_regions
+from api.management.commands import seed_experiences, seed_hotels, seed_regions
+from api.management.commands import seed_locations, seed_package, seed_package_11
 from api.management.commands.seed_places import CITY_ITINERARY, OLD_ROUTE_ORDER, PLACES, ROUTE_ORDER  # also adds the place texts to PHRASES
 
 IMG = "https://media.base44.com/images/public/6ae38de40859b796c87648a9/"
@@ -83,8 +84,8 @@ CITY_TOUR = dict(
     title="Samarkand City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture",
     duration_label="2 days", group_type="Small group", tour_type="car", max_travelers=21, languages=LANGUAGES,
     transport_included=True, tickets_included=False, pickup_included=True, guide="ALI TRAVEL team",
-    meeting_point="Samarkand airport", price_from_usd=289, rating=4.9, review_count=0,
-    summary="A day through Samarkand's must-see places with a local guide, taxi rides between stops and pickup from the airport.",
+    meeting_point="Samarkand airport", price_from_usd=209, rating=4.9, review_count=0,
+    summary="Two days through Samarkand's must-see places with a local guide, taxi rides between stops and pickup from the airport.",
     description=(
         "Walk and ride through the highlights of Samarkand: the Registan, Gur-e-Amir, Bibi-Khanym, Siyob Bazaar, Shah-i-Zinda, "
         "Ulugh Beg, the Silk Road Eternal City and the Imam al-Bukhari complex. Your guide from the ALI TRAVEL team meets you at "
@@ -98,7 +99,7 @@ CITY_TOUR = dict(
 TRANSLATABLE = {
     models.Destination: ["name", "region", "summary", "description", "suggested_duration", "activities", "highlights"],
     models.Tour: ["title", "destination_name", "category", "duration_label", "group_type", "summary", "description", "highlights",
-                  "included", "excluded", "guide", "meeting_point", "route", "story"],
+                  "included", "excluded", "guide", "meeting_point", "route", "story", "location_note"],
     models.Hotel: ["name", "destination_name", "summary", "description", "amenities"],
     models.FoodExperience: ["name", "kind", "destination_name", "summary"],
     models.TransportOption: ["name", "vehicle", "summary"],
@@ -207,6 +208,9 @@ class Command(BaseCommand):
             self.refresh(tour, changed)
         self.add_regions()
         self.add_experiences()
+        self.add_hotels()
+        self.add_package()
+        self.add_locations()
         self.stdout.write(f"Legal pages created: {load_legal_pages()}.")
         self.stdout.write(f"Translations added to {apply_translations()} records.")
 
@@ -288,6 +292,63 @@ class Command(BaseCommand):
                                             description=summary, image_url=img("hotel"), price_from_usd=price,
                                             amenities=["Breakfast included", "Wi-Fi", "Air conditioning"])
         self.stdout.write(f"Regional tours and places created: {created}.")
+
+    def add_hotels(self):
+        """Create the real hotels, guesthouses and hostels; the made-up sample listings are archived the first time. Existing hotels are untouched."""
+        created, per_destination = 0, {}
+        for slug, name, city, kind, stars, price, basis, extra, amenities in seed_hotels.HOTELS:
+            destination, destination_name, _, _ = seed_hotels.CITIES[city]
+            position = per_destination[destination] = per_destination.get(destination, -1) + 1
+            if models.Hotel.objects.filter(slug=slug).exists():
+                continue
+            summary, _ = seed_hotels.summary_for(city, kind, stars, extra)
+            description, _ = seed_hotels.description_for(slug, city, kind, stars, extra, basis)
+            cover, more, illustrative = seed_hotels.gallery_for(slug, destination, position, kind)
+            models.Hotel.objects.create(
+                slug=slug, name=name, destination_slug=destination, destination_name=destination_name, stars=stars, property_type=kind,
+                price_basis=basis, summary=summary, description=description, image_url=cover, gallery=more, photos_illustrative=illustrative,
+                price_from_usd=price, amenities=amenities or [], rating=0, is_demo=False, status="published")
+            created += 1
+        if created:
+            models.Hotel.objects.filter(slug__in=seed_hotels.SAMPLE_SLUGS, status="published").update(status="archived")
+        self.stdout.write(f"Hotels created: {created}.")
+
+    def add_package(self):
+        """Create the 7-day Silk Road package with its extra places on the road, and give the Samarkand places real photographs."""
+        created = 0
+        for parent, slug, name, fee, filename, summary, about, story in (
+                [(seed_package.SLUG, *p[:7]) for p in seed_package.NEW_PLACES] + [(seed_package_11.SLUG, *p[:7]) for p in seed_package_11.NEW_PLACES]):
+            if models.Tour.objects.filter(slug=slug).exists():
+                continue
+            fields = dict(CITY_TOUR, title=f"{name} Tour", destination_slug="", destination_name="Uzbekistan", summary=summary, description=about, story=story,
+                          tour_type="walking", duration_label="Flexible hours", price_from_usd=0, featured=False, image_url=seed_regions.photo(filename),
+                          parent_slug=parent, entrance_fee_usd=fee, route=[f"{name} | {fee}" if fee is not None else name], itinerary=[],
+                          included=["Local guide service", "Walking tour", "Taxi service", "Airport pickup"], excluded=["Entrance ticket", "Lunch", "Dinner"])
+            models.Tour.objects.create(slug=slug, **fields)
+            created += 1
+        if not models.Tour.objects.filter(slug=seed_package.SLUG).exists():
+            models.Tour.objects.create(slug=seed_package.SLUG, **seed_package.package_fields(CITY_TOUR))
+            created += 1
+        if not models.Tour.objects.filter(slug=seed_package_11.SLUG).exists():
+            models.Tour.objects.create(slug=seed_package_11.SLUG, **seed_package_11.package_fields(CITY_TOUR))
+            created += 1
+        for slug, filename in seed_package.PLACE_PHOTOS.items():
+            place = models.Tour.objects.filter(slug=slug, image_url__contains=seed_package.PLACEHOLDER).first()
+            if place:
+                place.image_url = seed_regions.photo(filename)
+                place.save(update_fields=["image_url"])
+        self.stdout.write(f"Package and road places created: {created}.")
+
+    def add_locations(self):
+        """Give the places of the tours their exact location (only where none is set yet, so an admin's correction stays)."""
+        done = 0
+        for slug, (lat, lon, note) in seed_locations.LOCATIONS.items():
+            place = models.Tour.objects.filter(slug=slug, latitude__isnull=True).first()
+            if place:
+                place.latitude, place.longitude, place.location_note = lat, lon, note
+                place.save(update_fields=["latitude", "longitude", "location_note"])
+                done += 1
+        self.stdout.write(f"Places located: {done}.")
 
     def add_experiences(self):
         """Create the hands-on food classes of Samarkand (non baking, plov cooking, both). Existing records are left alone."""

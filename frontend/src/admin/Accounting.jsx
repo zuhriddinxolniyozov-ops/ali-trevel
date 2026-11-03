@@ -64,6 +64,7 @@ function Summary({ range, openBooking }) {
         <Kpi label={t('Expenses')} value={usd(s.expenses)} note={t('Costs of tours plus general expenses')} />
         <Kpi label={t('Net profit')} value={usd(s.profit)} note={t('Revenue minus expenses')} tone={s.profit < 0 ? 'text-destructive' : 'text-emerald-700'} />
         <Kpi label={t('Margin')} value={`${s.margin}%`} note={t('Profit as a share of revenue')} />
+        {s.expected.count > 0 && <Kpi label={t('Expected profit')} value={usd(s.expected.profit)} note={t('Confirmed tours not completed yet: {n}. Costs are added automatically.', { n: s.expected.count })} tone={s.expected.profit < 0 ? 'text-destructive' : 'text-sky-800'} />}
       </div>
 
       <section className="rounded-sm border border-navy/10 bg-white p-5">
@@ -103,7 +104,7 @@ function Summary({ range, openBooking }) {
             {s.receivables.map((r) => (
               <li key={r.id}>
                 <button onClick={() => openBooking(r.id)} className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-sand-soft/50">
-                  <span className="min-w-0"><span className="block truncate text-[14.5px] font-medium">{r.service_title}</span><span className="block truncate text-[12.5px] text-ink">{r.reference} · {r.full_name}</span></span>
+                  <span className="min-w-0"><span className="block truncate text-[14.5px] font-medium">{r.service_title_local || r.service_title}</span><span className="block truncate text-[12.5px] text-ink">{r.reference} · {r.full_name}</span></span>
                   <span className="shrink-0 font-mono text-[14px] text-amber-700">{usd(r.balance)}</span>
                 </button>
               </li>
@@ -249,7 +250,8 @@ function Panel({ row, reload, onInvoice }) {
       </div>
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-heading text-[20px]">{t('Tour costs')}</h4>
-          <button onClick={autoCosts} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-navy/20 px-3.5 text-[12.5px] hover:bg-white"><Wand2 className="h-3.5 w-3.5" />{t('Fill estimated costs from the tour template')}</button></div>
+          <button onClick={autoCosts} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-navy/20 px-3.5 text-[12.5px] hover:bg-white"><Wand2 className="h-3.5 w-3.5" />{t('Recalculate the automatic costs')}</button></div>
+        <p className="mt-1 text-[12px] text-ink">{t('Guide, car, hotel nights and tickets are added by themselves when the tour is confirmed. What is left of the price is the profit.')}</p>
         <MoneyList rows={row.expenses} kind="expenses" onChanged={reload} />
         <ExpenseForm booking={row} onSaved={reload} />
         <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => onInvoice(row.id)} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-navy px-4 text-[13px] text-ivory"><FileText className="h-3.5 w-3.5" />{t('Invoice')}</button></div>
@@ -265,11 +267,11 @@ function Ledger({ range, focusId }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(focusId || null)
   const [invoice, setInvoice] = useState(null)
-  const params = { completed: 'status=completed', open: 'status=completed&state=open', settled: 'status=completed&state=settled', all: 'status=all' }[filter]
+  const params = { completed: 'status=completed', confirmed: 'status=confirmed', open: 'status=completed&state=open', settled: 'status=completed&state=settled', all: 'status=all' }[filter]
   const { data, loading, reload } = useFetch(`/accounting/ledger/?${params}&q=${encodeURIComponent(q)}&${query(range)}`, { list: true })
   useEffect(() => { if (focusId) document.getElementById(`row-${focusId}`)?.scrollIntoView({ block: 'center' }) }, [focusId, data.length])
   const totals = useMemo(() => data.reduce((a, r) => ({ due: a.due + r.total_due, paid: a.paid + r.paid, costs: a.costs + r.costs, profit: a.profit + r.profit }), { due: 0, paid: 0, costs: 0, profit: 0 }), [data])
-  const FILTERS = [['completed', 'Completed tours'], ['open', 'Open balances'], ['settled', 'Settled'], ['all', 'All tours']]
+  const FILTERS = [['completed', 'Completed tours'], ['confirmed', 'Confirmed (expected)'], ['open', 'Open balances'], ['settled', 'Settled'], ['all', 'All tours']]
   const cols = 'grid-cols-[1.6fr_repeat(4,1fr)] lg:grid-cols-[2fr_1fr_repeat(5,1fr)_1fr]'
   return (
     <div>
@@ -285,7 +287,7 @@ function Ledger({ range, focusId }) {
           {loading ? <div className="p-6"><Spinner /></div> : data.map((r) => (
             <div key={r.id} id={`row-${r.id}`} className="border-b border-navy/10 last:border-0">
               <button onClick={() => setOpen(open === r.id ? null : r.id)} className={`grid w-full ${cols} items-center gap-3 px-4 py-3 text-left text-[14px] hover:bg-sand-soft/50`}>
-                <span className="min-w-0"><span className="block truncate font-medium">{r.service_title}</span><span className="block truncate text-[12px] text-ink">{r.reference} · {r.full_name} · {r.guests}</span></span>
+                <span className="min-w-0"><span className="block truncate font-medium">{r.service_title_local || r.service_title}</span><span className="block truncate text-[12px] text-ink">{r.reference} · {r.full_name} · {r.guests}</span></span>
                 <span className="hidden font-mono text-[12.5px] lg:block">{r.service_date}</span>
                 <span className="text-right font-mono">{usd(r.total_due)}</span>
                 <span className="text-right font-mono">{usd(r.paid)}</span>
@@ -328,13 +330,56 @@ function GeneralExpenses({ range }) {
   )
 }
 
+/* ---------- cost rates ---------- */
+const RATE_FIELDS = [
+  ['guide_per_day', 'Guide, per day (USD)', 'What you pay a guide for one day.'],
+  ['car_per_day', 'Car with driver, per day (USD)', 'One car for one day.'],
+  ['car_seats', 'Travellers per car', 'More travellers need more cars.'],
+  ['hotel_per_room_night', 'Hotel, per room per night (USD)', 'The cost of the most affordable hotel; two travellers share a room.'],
+  ['meals_per_person_day', 'Meals, per person per day (USD)', 'Leave 0 when breakfast is in the hotel price and guests pay for other meals.'],
+  ['hotel_cost_percent', 'Hotel bookings: our cost (% of the price)', 'For a stay booked alone, the share of the price paid to the hotel.'],
+  ['transport_cost_percent', 'Transport bookings: our cost (% of the price)', 'For a transfer booked alone, the share of the price paid to the driver.'],
+  ['other_cost_percent', 'Other services: our cost (% of the price)', 'Used when a booking has no tour to work the costs out from.'],
+]
+
+function CostRates() {
+  const t = useT()
+  const { data, loading } = useFetch('/accounting/rates/')
+  const [form, setForm] = useState(null)
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+  if (loading || !data) return <Spinner />
+  const current = form || data
+  const save = async (e) => {
+    e.preventDefault(); setSaving(true); setMessage('')
+    try { await api.put('/accounting/rates/', current); setMessage(t('Saved. The costs of all confirmed and completed tours were recalculated.')) } catch (ex) { setMessage(ex.message) }
+    setSaving(false)
+  }
+  return (
+    <form onSubmit={save} className="max-w-3xl rounded-sm border border-navy/10 bg-white p-6">
+      <h2 className="font-heading text-[26px]">{t('Cost rates')}</h2>
+      <p className="mt-1 text-[14px] text-ink">{t('When a tour is confirmed, its costs are worked out from these rates: guide, car, hotel nights (the most affordable hotel) and entrance tickets when the price includes them. A tour with its own cost template uses that instead. The rest of the price is your profit.')}</p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {RATE_FIELDS.map(([k, label, help]) => (
+          <label key={k} className="label">{t(label)}
+            <input type="number" min="0" step="any" className="input" value={current[k] ?? ''} onChange={(e) => { setMessage(''); setForm({ ...current, [k]: e.target.value }) }} />
+            <span className="mt-1 block text-[12px] text-ink">{t(help)}</span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-6 flex flex-wrap items-center gap-3"><button className="btn-primary" disabled={saving}>{saving && <Spinner />}{t('Save and recalculate')}</button>{message && <span role="status" className="text-[14px] text-turquoise-deep">{message}</span>}</div>
+      <p className="mt-4 text-[12.5px] text-ink">{t('A cost you add or change by hand is never overwritten. Hotels of 3, 4 or 5 stars and a premium taxi are charged to the traveller as an extra, so they are not part of these costs.')}</p>
+    </form>
+  )
+}
+
 export default function Accounting() {
   const t = useT()
   const [tab, setTab] = useState('summary')
   const [period, setPeriod] = useState('year')
   const [focusId, setFocusId] = useState(null)
   const range = useMemo(() => periodRange(period), [period])
-  const tabs = [['summary', 'Summary'], ['ledger', 'Tour ledger'], ['expenses', 'General expenses']]
+  const tabs = [['summary', 'Summary'], ['ledger', 'Tour ledger'], ['expenses', 'General expenses'], ['rates', 'Cost rates']]
   const periods = [['month', 'This month'], ['last', 'Last month'], ['year', 'This year'], ['all', 'All time']]
   const download = (kind) => api.download(`/accounting/export/?kind=${kind}&${query(range)}`, `ali-travel-${kind}.csv`)
   const openBooking = (id) => { setFocusId(id); setTab('ledger') }
@@ -348,11 +393,12 @@ export default function Accounting() {
           <button onClick={() => download('expenses')} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-navy/15 bg-white px-4 text-[13px] hover:bg-sand-soft"><Download className="h-3.5 w-3.5" />{t('Expenses (CSV)')}</button>
         </div>
       </div>
-      <p className="mt-3 text-[13px] text-ink">{t('Revenue and profit count tours marked as completed, by the day the tour took place. Amounts are in US dollars.')}</p>
+      <p className="mt-3 text-[13px] text-ink">{t('Revenue and profit count tours marked as completed, by the day the tour took place. Costs are added automatically when a tour is confirmed. Amounts are in US dollars.')}</p>
       <div className="mt-5">
         {tab === 'summary' && <Summary range={range} openBooking={openBooking} />}
         {tab === 'ledger' && <Ledger key={focusId || 'all'} range={range} focusId={focusId} />}
         {tab === 'expenses' && <GeneralExpenses range={range} />}
+        {tab === 'rates' && <CostRates />}
       </div>
     </div>
   )

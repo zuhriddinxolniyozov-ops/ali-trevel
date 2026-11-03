@@ -7,6 +7,8 @@ import { ACCOUNTING, DAY_PLAN, PLAN_EDITOR } from './strings.plan'
 import { DEALS, DEALS_ADMIN } from './strings.deals'
 import { TRUST, TRUST_ADMIN } from './strings.trust'
 import { GROUP, GROUP_ADMIN } from './strings.group'
+import { HOTELS, HOTELS_ADMIN } from './strings.hotels'
+import { SILKROAD } from './strings.silkroad'
 
 const section = (name, rows) => ({ name, rows })
 
@@ -263,7 +265,9 @@ export const SECTIONS = [
   section('Offers, hotels and legal pages', DEALS),
   section('Booking confidence and reviews', TRUST),
   section('Group pricing and selecting tours', GROUP),
-  section('Admin panel', { ...ADMIN, ...ADMIN_FORMS, ...PLAN_EDITOR, ...ACCOUNTING, ...DEALS_ADMIN, ...TRUST_ADMIN, ...GROUP_ADMIN }),
+  section('Hotels and photo slider', HOTELS),
+  section('Silk Road map', SILKROAD),
+  section('Admin panel', { ...ADMIN, ...ADMIN_FORMS, ...PLAN_EDITOR, ...ACCOUNTING, ...DEALS_ADMIN, ...TRUST_ADMIN, ...GROUP_ADMIN, ...HOTELS_ADMIN }),
 ]
 
 // Flat lookup used at runtime: English text -> [uz, ru, fr, de, es]

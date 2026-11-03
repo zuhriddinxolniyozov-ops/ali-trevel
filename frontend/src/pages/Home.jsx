@@ -7,6 +7,9 @@ import { useI18n, useT } from '../i18n'
 import { DestinationCard, SectionHeading, Skeleton, Spinner, TourCard } from '../components/ui'
 import { IMAGES } from '../data'
 import { ReviewCard } from '../components/Trust'
+import SilkRoadMap from '../components/SilkRoadMap'
+import PackageCard, { PACKAGES } from '../components/PackageCard'
+import BestValue from '../components/BestValue'
 
 const TRUST = ['Local, licensed guides', 'Private & small-group journeys', 'Booking confirmed by our team']
 const WHY = [
@@ -55,6 +58,7 @@ export default function Home() {
   const tours = useFetch('/tours/', { list: true })
   const classes = useFetch('/tours/?tour_type=workshop', { list: true })
   const reviews = useFetch('/reviews/', { list: true })
+  const packages = Object.keys(PACKAGES).map((slug) => tours.data.find((x) => x.slug === slug)).filter(Boolean)
   const words = t('Discover the Magic of Uzbekistan').split(' ')
   const last = words.length > 1 ? words.pop() : ''
   return (
@@ -85,10 +89,15 @@ export default function Home() {
       <section id="destinations" className="shell py-20 lg:py-28">
         <SectionHeading align="between" eyebrow="Destinations" title="Seven regions, one Silk Road" description="From turquoise domes to walled desert towns — start with the places everyone dreams of."
           action={<Link to="/destinations" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All destinations')}<ArrowRight className="h-4 w-4" /></Link>} />
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {tours.loading ? <Skeleton count={3} /> : packages.map((x, i) => <PackageCard key={x.slug} tour={x} delay={i * 80} />)}
+        </div>
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {dest.loading ? <Skeleton count={3} /> : dest.data.filter((d) => d.featured).map((d, i) => <DestinationCard key={d.slug} destination={d} delay={i * 80} />)}
         </div>
       </section>
+
+      <BestValue tours={tours.data} />
 
       <section className="bg-sand-soft/60 py-20 lg:py-28">
         <div className="shell">
@@ -145,6 +154,8 @@ export default function Home() {
           <p className="mt-4 text-[12px] text-ink/70">{t('Demonstration testimonials.')}</p>
         </>)}
       </section>
+
+      <SilkRoadMap />
 
       <section className="relative overflow-hidden bg-navy py-20 text-ivory lg:py-24">
         <div className="girih absolute inset-0 opacity-[0.16]" />

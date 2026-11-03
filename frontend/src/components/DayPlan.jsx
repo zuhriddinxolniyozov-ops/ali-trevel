@@ -3,6 +3,7 @@ import { Car, Clock, Coffee, Landmark, Printer, Quote, Star, Utensils } from 'lu
 import { money } from '../hooks'
 import { useI18n } from '../i18n'
 import { Photo } from './ui'
+import { PinLink } from './PlaceMap'
 
 /** "Registan Square | 16" -> { name, fee } */
 export const parseStop = (line) => {
@@ -122,6 +123,7 @@ export default function DayPlan({ tour, places = [], startDate }) {
                   <div>
                     <h4 className="font-heading text-[24px]"><Link to={`/tours/${place.slug}`} className="hover:text-turquoise-deep">{stops[index].name}</Link></h4>
                     <p className="mt-2 text-[14.5px] leading-relaxed text-ink">{place.description}</p>
+                    <PinLink place={place} className="mt-2" />
                     {place.story && (
                       <blockquote className="mt-4 flex gap-3 border-l-2 border-gold pl-4">
                         <Quote className="mt-1 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />

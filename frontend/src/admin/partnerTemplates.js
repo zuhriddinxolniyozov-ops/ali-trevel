@@ -5,7 +5,7 @@
  * These are drafts: the agreement in particular should be read by a lawyer before it is signed.
  */
 export const PARTNER_TYPES = ['hotel', 'guide', 'transport']
-export const DOCS = ['proposal', 'email', 'inquiry', 'agreement']
+export const DOCS = ['proposal', 'email', 'inquiry', 'agreement', 'photos']
 export const DOC_LANGS = [['en', 'English'], ['uz', "Oʻzbekcha"], ['ru', 'Русский']]
 
 const list = (items) => items.map((x) => `- ${x}`).join('\n')
@@ -641,10 +641,116 @@ ____________________________________________
   },
 }
 
+/* ---------- request for photographs and permission to publish them ---------- */
+const PHOTO_ASKS = {
+  en: {
+    hotel: ['6 to 12 good photographs, landscape orientation, at least 1600 pixels wide: the building and entrance, a typical room and bathroom, the breakfast area, the courtyard or terrace',
+      'Your current star class, room categories and the lowest usual nightly price, so that our website shows correct information'],
+    guide: ['2 to 3 recent photographs of yourself guiding (a portrait and a group at a monument), at least 1600 pixels wide',
+      'The languages you guide in and the places you know best, in two or three lines'],
+    transport: ['6 to 10 good photographs of your vehicles, outside and inside, landscape orientation, at least 1600 pixels wide',
+      'The vehicle models, the number of seats and the services you offer (airport transfers, daily hire, long distance)'],
+  },
+  uz: {
+    hotel: [`6 tadan 12 tagacha sifatli surat, gorizontal, kamida 1600 piksel kenglikda: bino va kirish, oddiy xona va hammom, nonushta joyi, hovli yoki terrasa`,
+      `Hozirgi yulduz toifasi, xona turlari va odatdagi eng past kechalik narx, saytimizda toʻgʻri maʼlumot koʻrsatilishi uchun`],
+    guide: [`Oʻzingiz gidlik qilayotgan 2–3 ta soʻnggi surat (portret va yodgorlik oldidagi guruh), kamida 1600 piksel kenglikda`,
+      `Qaysi tillarda gidlik qilishingiz va eng yaxshi bilgan joylaringiz, 2–3 qatorda`],
+    transport: [`Avtomobillaringizning 6 tadan 10 tagacha sifatli surati, tashqaridan va ichkaridan, gorizontal, kamida 1600 piksel kenglikda`,
+      `Avtomobil modellari, oʻrindiqlar soni va xizmatlaringiz (aeroport transferi, kunlik ijara, uzoq masofa)`],
+  },
+  ru: {
+    hotel: ['6–12 качественных фотографий в горизонтальной ориентации, шириной не менее 1600 пикселей: здание и вход, типовой номер и ванная, зал для завтрака, двор или терраса',
+      'Вашу текущую звёздность, категории номеров и обычную минимальную цену за ночь, чтобы на нашем сайте была верная информация'],
+    guide: ['2–3 свежие фотографии с экскурсий (портрет и группа у памятника), шириной не менее 1600 пикселей',
+      'Языки, на которых вы работаете, и места, которые знаете лучше всего, в двух-трёх строках'],
+    transport: ['6–10 качественных фотографий ваших автомобилей снаружи и внутри, в горизонтальной ориентации, шириной не менее 1600 пикселей',
+      'Модели автомобилей, число мест и ваши услуги (трансферы из аэропорта, аренда на день, дальние поездки)'],
+  },
+}
+
+const PHOTOS = {
+  en: (d, k, c) => `${when(d.date, 'en')}
+
+To: ${blank(d.partner)}${d.contact ? `\nAttention: ${d.contact}` : ''}
+${blank(d.city, 'Samarkand')}
+
+**Subject: Photographs of ${blank(d.partner)} for the ${d.company} website**
+
+${c.greeting(d)}
+
+Thank you for working with ${d.company}. We present our partners on our website, in our itineraries and in our Telegram bot, and we would like ${blank(d.partner)} to appear with its own photographs rather than with general pictures of the destination.
+
+**What we kindly ask you to send**
+${list([...PHOTO_ASKS.en[d.type || 'hotel'], 'Your permission, confirmed in your reply, to publish the photographs on our website and social networks with your name credited', 'Confirmation that you own the photographs or have the right to share them'])}
+
+**How to send them**
+${list(['Reply to this email with the photographs attached, or send them by WhatsApp or Telegram' + (d.ourPhone ? ` to ${d.ourPhone}` : ''), 'Large files can be sent through Google Drive, Telegram or WeTransfer'])}
+
+**What we promise**
+${list([`We use the photographs only to present ${blank(d.partner)} to our guests, with your name beside them, and we do not sell or pass them to anyone else`, 'We will remove or replace any photograph within 5 working days of your request', 'Your photographs stay your property'])}
+
+Please reply by ${when(d.deadline, 'en')}. Thank you for your time and for the cooperation.
+
+${c.close}
+${signature(d, 'en')}`,
+  uz: (d, k, c) => `${when(d.date, 'uz')}
+
+Kimga: ${blank(d.partner)}${d.contact ? `\nDiqqatga: ${d.contact}` : ''}
+${blank(d.city, 'Samarqand')}
+
+**Mavzu: ${blank(d.partner)} suratlari ${d.company} veb-sayti uchun**
+
+${c.greeting(d)}
+
+${d.company} bilan hamkorlik qilayotganingiz uchun rahmat. Biz hamkorlarimizni veb-saytimizda, marshrutlarimizda va Telegram-botimizda taqdim etamiz va ${blank(d.partner)} yoʻnalishning umumiy suratlari bilan emas, oʻz suratlari bilan koʻrinishini istaymiz.
+
+**Yuborishingizni soʻraymiz**
+${list([...PHOTO_ASKS.uz[d.type || 'hotel'], `Suratlarni veb-saytimizda va ijtimoiy tarmoqlarimizda ismingiz koʻrsatilgan holda eʼlon qilishga javob xatingizda tasdiqlangan ruxsatingiz`, `Suratlar sizniki ekani yoki ularni ulashish huquqingiz borligi tasdigʻi`])}
+
+**Qanday yuborish kerak**
+${list([`Suratlarni ilova qilib shu xatga javob yozing yoki WhatsApp yoki Telegram orqali yuboring` + (d.ourPhone ? ` (${d.ourPhone})` : ''), `Katta fayllarni Google Drive, Telegram yoki WeTransfer orqali yuborish mumkin`])}
+
+**Biz nimani va'da qilamiz**
+${list([`Suratlardan faqat ${blank(d.partner)} ni mehmonlarimizga taqdim etish uchun, ismingiz bilan birga foydalanamiz; ularni sotmaymiz va boshqalarga bermaymiz`, `Istalgan suratni soʻrovingizdan keyin 5 ish kuni ichida olib tashlaymiz yoki almashtiramiz`, `Suratlar sizning mulkingiz boʻlib qoladi`])}
+
+Iltimos, ${when(d.deadline, 'uz')} gacha javob bering. Vaqtingiz va hamkorligingiz uchun rahmat.
+
+${c.close}
+${signature(d, 'uz')}`,
+  ru: (d, k, c) => `${when(d.date, 'ru')}
+
+Кому: ${blank(d.partner)}${d.contact ? `\nВниманию: ${d.contact}` : ''}
+${blank(d.city, 'Самарканд')}
+
+**Тема: Фотографии ${blank(d.partner)} для сайта ${d.company}**
+
+${c.greeting(d)}
+
+Спасибо за сотрудничество с ${d.company}. Мы представляем партнёров на нашем сайте, в маршрутах и в Telegram-боте и хотели бы, чтобы ${blank(d.partner)} был показан с собственными фотографиями, а не с общими снимками направления.
+
+**О чём мы просим**
+${list([...PHOTO_ASKS.ru[d.type || 'hotel'], 'Ваше разрешение, подтверждённое в ответе, публиковать фотографии на нашем сайте и в социальных сетях с указанием вашего названия', 'Подтверждение, что фотографии принадлежат вам или вы вправе ими делиться'])}
+
+**Как прислать**
+${list(['Ответьте на это письмо с вложенными фотографиями или отправьте их в WhatsApp или Telegram' + (d.ourPhone ? ` (${d.ourPhone})` : ''), 'Большие файлы можно отправить через Google Drive, Telegram или WeTransfer'])}
+
+**Что мы обещаем**
+${list([`Мы используем фотографии только для представления ${blank(d.partner)} нашим гостям, рядом с вашим названием, и не продаём и не передаём их третьим лицам`, 'Любую фотографию мы удалим или заменим в течение 5 рабочих дней после вашего запроса', 'Фотографии остаются вашей собственностью'])}
+
+Просим ответить до ${when(d.deadline, 'ru')}. Благодарим за время и сотрудничество.
+
+${c.close}
+${signature(d, 'ru')}`,
+}
+TEXT.en.photos = PHOTOS.en
+TEXT.uz.photos = PHOTOS.uz
+TEXT.ru.photos = PHOTOS.ru
+
 /** Build one document. `data` comes from the form (see PartnerDocs.jsx). */
 export function buildDocument({ doc, type, lang, data }) {
   const d = { company: 'ALI TRAVEL', paymentDays: 7, termMonths: 12, cancelHours: 48, ...data }
-  return TEXT[lang][doc](d, KINDS[lang][type], COMMON[lang]).trim()
+  return TEXT[lang][doc]({ ...d, type }, KINDS[lang][type], COMMON[lang]).trim()
 }
 
 /** Subject line of a document (for the mailto: link); documents start with "**Subject: …**" or "**Mavzu / Тема: …**". */

@@ -28,6 +28,21 @@ export function Logo({ light = false }) {
   )
 }
 
+/** Extra contact lines the owner added in Settings: a label, a value and an optional link. */
+export function ExtraContacts({ settings, light, className = '' }) {
+  const rows = (settings.extra_contacts || []).filter((r) => r && (r.label || r.value))
+  if (!rows.length) return null
+  const link = light ? 'text-ivory hover:text-turquoise' : 'text-turquoise-deep hover:text-navy'
+  return (
+    <ul className={`space-y-1.5 text-[14px] ${light ? 'text-ivory/80' : 'text-ink'} ${className}`}>
+      {rows.map((r, i) => (
+        <li key={i}>{r.label && <span className={`mr-1.5 ${light ? 'text-ivory/55' : 'text-ink/70'}`}>{r.label}:</span>}
+          {r.url ? <a href={r.url} target={r.url.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className={`break-words underline-offset-2 hover:underline ${link}`}>{r.value || r.url}</a> : <span className="break-words">{r.value}</span>}</li>
+      ))}
+    </ul>
+  )
+}
+
 export function Phones({ settings, light }) {
   const cls = light ? 'text-ivory hover:text-turquoise' : 'text-navy hover:text-turquoise-deep'
   return (
@@ -206,6 +221,7 @@ function Footer() {
             {settings.email && <p className="mt-4 flex items-start gap-2 text-[14px] text-ivory/80"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-turquoise" /><a href={`mailto:${settings.email}`} className="break-all hover:text-ivory">{settings.email}</a></p>}
             {settings.address && <p className="mt-3 text-[14px] text-ivory/80">{settings.address}</p>}
             {settings.hours && <p className="mt-1 text-[13px] text-ivory/60">{settings.hours}</p>}
+            <ExtraContacts settings={settings} light className="mt-3" />
             <ul className="mt-6 space-y-2">{LEGAL.map(([l, to]) => <li key={to}><Link to={to} className="text-[13px] text-ivory/55 hover:text-ivory">{t(l)}</Link></li>)}</ul>
           </div>
         </div>
