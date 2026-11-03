@@ -743,3 +743,44 @@ class TelegramReviewTests(APITestCase):
         self.press(f"rv:{self.booking.reference}:5", chat=99)  # somebody else's chat
         self.assertEqual(models.TelegramUser.objects.filter(state="review").count(), 0)
         self.assertEqual(models.Review.objects.count(), 1)
+
+
+class SignInProtectionTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        get_user_model().objects.create_user("boss@example.com", "boss@example.com", "right-password", is_staff=True)
+
+    def sign_in(self, password, email="boss@example.com", ip="203.0.113.7"):
+        return self.client.post("/api/auth/login/", {"email": email, "password": password}, format="json", REMOTE_ADDR=ip)
+
+    def test_repeated_wrong_passwords_lock_that_address_and_account_for_a_while(self):
+        for _ in range(8):
+            self.assertEqual(self.sign_in("wrong").status_code, 400)
+        locked = self.sign_in("right-password")  # even the right password is refused while locked
+        self.assertEqual(locked.status_code, 429)
+        self.assertIn("Too many failed attempts", locked.json()["error"])
+
+    def test_the_lock_does_not_affect_other_addresses_or_other_accounts(self):
+        for _ in range(8):
+            self.sign_in("wrong")
+        self.assertEqual(self.sign_in("right-password", ip="198.51.100.9").status_code, 200)
+        self.assertEqual(self.sign_in("whatever", email="other@example.com").status_code, 400)
+
+    def test_a_successful_sign_in_clears_the_failures(self):
+        for _ in range(5):
+            self.sign_in("wrong")
+        self.assertEqual(self.sign_in("right-password").status_code, 200)
+        for _ in range(5):
+            self.assertEqual(self.sign_in("wrong").status_code, 400)  # the counter started again from zero
+
+    def test_behind_a_proxy_each_visitor_has_their_own_rate_limit(self):
+        from django.conf import settings
+        models.Tour.objects.create(slug="t", title="T", destination_name="X", category="Culture", duration_label="1 day", group_type="Small group", summary="s", price_from_usd=10)
+        body = {"tour_slug": "t", "name": "Anna", "rating": 5, "text": "Nice"}
+        behind_nginx = dict(settings.REST_FRAMEWORK, NUM_PROXIES=1)
+        with override_settings(REST_FRAMEWORK=behind_nginx):
+            # nginx connects from 127.0.0.1 and appends the visitor's real address last in X-Forwarded-For
+            for _ in range(8):
+                self.assertEqual(self.client.post("/api/reviews/", body, format="json", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="9.9.9.9").status_code, 201)
+            self.assertEqual(self.client.post("/api/reviews/", body, format="json", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="9.9.9.9").status_code, 429)
+            self.assertEqual(self.client.post("/api/reviews/", body, format="json", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="8.8.8.8").status_code, 201)

@@ -103,7 +103,7 @@ function Header() {
     <header className={`sticky top-0 z-50 border-b border-navy/10 bg-ivory/95 backdrop-blur-md transition-shadow duration-500 ${scrolled ? 'shadow-[0_18px_40px_-32px_rgba(0,35,102,0.55)]' : ''}`}>
       <div className="shell flex h-[74px] items-center justify-between gap-6">
         <Logo />
-        <nav aria-label="Main navigation" className="hidden items-center gap-3 xl:flex">
+        <nav aria-label={t('Main navigation')} className="hidden items-center gap-3 xl:flex">
           {NAV.map(([label, to]) => (
             <NavLink key={to} to={to} className={({ isActive }) => `link-underline whitespace-nowrap text-[11px] uppercase tracking-[0.04em] transition-colors ${isActive ? 'text-navy' : 'text-ink hover:text-navy'}`}>{t(label)}</NavLink>
           ))}
@@ -137,7 +137,7 @@ function Header() {
         <div className="fixed inset-0 z-50 bg-navy/40" onClick={() => setOpen(false)}>
           <aside className="ml-auto flex h-full w-[88%] max-w-sm flex-col bg-ivory" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-navy/10 px-6 py-6"><Logo /><button aria-label={t('Close menu')} onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
-            <nav className="flex-1 overflow-y-auto px-6 py-6" aria-label="Mobile navigation">
+            <nav className="flex-1 overflow-y-auto px-6 py-6" aria-label={t('Mobile navigation')}>
               <ul className="space-y-1">
                 {NAV.map(([label, to]) => (
                   <li key={to}><NavLink to={to} className={({ isActive }) => `block rounded-md px-3 py-3 font-heading text-[22px] ${isActive ? 'bg-sand-soft text-navy' : 'text-navy/80 hover:bg-sand-soft'}`}>{t(label)}</NavLink></li>

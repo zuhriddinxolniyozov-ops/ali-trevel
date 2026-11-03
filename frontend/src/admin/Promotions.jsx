@@ -42,9 +42,9 @@ function PromotionForm({ initial, onDone }) {
     <form onSubmit={save} className="max-w-3xl space-y-5 rounded-md border border-navy/10 bg-white p-6">
       <h2 className="font-heading text-[28px]">{t(f.id ? 'Edit promotion' : 'New promotion')}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="label sm:col-span-2">{t('Title')} <span className="text-destructive">*</span><input required className={`${field} mt-1`} value={f.title} onChange={set('title')} placeholder="Autumn sale — 20% off all tours" />
+        <label className="label sm:col-span-2">{t('Title')} <span className="text-destructive">*</span><input required className={`${field} mt-1`} value={f.title} onChange={set('title')} placeholder={t('Autumn sale — 20% off all tours')} />
           <span className="mt-1 block text-[12px] font-normal text-ink/80">{t('Shown in the banner at the top of the website.')}</span></label>
-        <label className="label sm:col-span-2">{t('Message')}<input className={`${field} mt-1`} value={f.message} onChange={set('message')} placeholder="Prices already include the discount." /></label>
+        <label className="label sm:col-span-2">{t('Message')}<input className={`${field} mt-1`} value={f.message} onChange={set('message')} placeholder={t('Prices already include the discount.')} /></label>
         <label className="label">{t('Discount (%)')} <span className="text-destructive">*</span><input required type="number" min="1" max="90" className={`${field} mt-1`} value={f.percent} onChange={set('percent')} />
           <span className="mt-1 block text-[12px] font-normal text-ink/80">{t('Example')}: ${sample} → {exactMoney(discounted(sample, f.percent))}</span></label>
         <label className="label">{t('Applies to')}<select className={`${field} mt-1`} value={f.applies_to} onChange={set('applies_to')}>{APPLIES.map(([k, l]) => <option key={k} value={k}>{t(l)}</option>)}</select></label>

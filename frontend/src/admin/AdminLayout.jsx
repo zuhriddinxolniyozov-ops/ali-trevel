@@ -52,7 +52,7 @@ function AdminLanguage() {
     <label className="relative flex h-11 items-center gap-1.5 rounded-full border border-navy/10 bg-white pl-3.5 pr-2 text-[13px] hover:bg-sand-soft">
       <Globe className="h-4 w-4 text-ink" aria-hidden="true" />
       <span className="sr-only">{t('Select language')}</span>
-      <select value={lang} onChange={(e) => setLang(e.target.value)} className="cursor-pointer appearance-none bg-transparent py-2 pr-4 uppercase outline-none" aria-label={t('Select language')}>
+      <select value={lang} onChange={(e) => setLang(e.target.value)} className="w-[3.6rem] cursor-pointer appearance-none bg-transparent py-2 pr-4 uppercase outline-none sm:w-auto" aria-label={t('Select language')}>
         {LANGS.map((l) => <option key={l.code} value={l.code}>{l.code.toUpperCase()} — {l.label}</option>)}
       </select>
     </label>
@@ -95,7 +95,7 @@ export default function AdminLayout() {
         </Link>
         <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.24em] text-ivory/60">{t('Operations console')}</p>
       </div>
-      <nav className="flex-1 overflow-y-auto px-4" aria-label="Admin sections">
+      <nav className="flex-1 overflow-y-auto px-4" aria-label={t('Admin sections')}>
         <ul className="space-y-1">
           {NAV.map(({ to, end, label, icon: Icon, badge }) => {
             const count = badge ? stats?.[badge] : 0
@@ -120,21 +120,21 @@ export default function AdminLayout() {
       <div className="hidden lg:block">{sidebar}</div>
       {mobileNav && <div className="fixed inset-0 z-40 flex bg-navy/40 lg:hidden" onClick={() => setMobileNav(false)}><div onClick={(e) => e.stopPropagation()}>{sidebar}</div></div>}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[66px] shrink-0 items-center justify-between gap-4 border-b border-navy/10 bg-ivory px-5 lg:px-8">
-          <div className="flex items-center gap-3">
+        <header className="flex h-[66px] shrink-0 items-center justify-between gap-2 border-b border-navy/10 bg-ivory px-3 sm:gap-4 sm:px-5 lg:px-8">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button className="rounded p-1 lg:hidden" aria-label={t('Open sections')} onClick={() => setMobileNav(true)}><LayoutGrid className="h-5 w-5" /></button>
-            <div><p className="font-mono text-[10px] uppercase tracking-[0.24em] text-ink">{t('ALI TRAVEL Admin')}</p><h1 className="font-heading text-[26px] leading-none">{t(current.label)}</h1></div>
+            <div className="min-w-0"><p className="truncate font-mono text-[10px] uppercase tracking-[0.24em] text-ink">{t('ALI TRAVEL Admin')}</p><h1 className="truncate font-heading text-[22px] leading-none sm:text-[26px]">{t(current.label)}</h1></div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <SectionSearch />
             <AdminLanguage />
             <Link to="/admin/bookings" aria-label={`${alerts} ${t('items need attention')}`} className="relative grid h-11 w-11 place-items-center rounded-full border border-navy/10 bg-white hover:bg-sand-soft">
               <Bell className="h-[18px] w-[18px]" />{alerts > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-turquoise px-1 text-[10px] font-medium">{alerts}</span>}
             </Link>
             <div className="relative" ref={menuRef}>
-              <button onClick={() => setMenu((m) => !m)} className="flex h-11 items-center gap-2.5 rounded-full border border-navy/10 bg-white pl-1.5 pr-3.5 text-[14px] hover:bg-sand-soft">
+              <button onClick={() => setMenu((m) => !m)} className="flex h-11 items-center gap-2.5 rounded-full border border-navy/10 bg-white pl-1.5 pr-2 text-[14px] hover:bg-sand-soft sm:pr-3.5">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-navy text-[12px] text-ivory">{display.charAt(0)}</span>
-                <span className="hidden sm:inline">{display}</span><ChevronDown className="h-4 w-4" />
+                <span className="hidden sm:inline">{display}</span><ChevronDown className="hidden h-4 w-4 sm:block" />
               </button>
               {menu && (
                 <div className="absolute right-0 z-30 mt-2 w-52 rounded-md border border-navy/10 bg-white p-1 text-[14px] shadow-lg">

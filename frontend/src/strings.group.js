@@ -1,5 +1,8 @@
 // Group pricing and selecting several tours. English key -> [uz, ru, fr, de, es].
 export const GROUP = {
+  'Main navigation': [`Asosiy menyu`, `Главное меню`, `Navigation principale`, `Hauptnavigation`, `Navegación principal`],
+  'Mobile navigation': [`Mobil menyu`, `Мобильное меню`, `Navigation mobile`, `Mobile Navigation`, `Navegación móvil`],
+  'Too many failed attempts. Please try again in a few minutes.': [`Juda koʻp muvaffaqiyatsiz urinish. Bir necha daqiqadan soʻng qayta urinib koʻring.`, `Слишком много неудачных попыток. Попробуйте снова через несколько минут.`, `Trop de tentatives échouées. Réessayez dans quelques minutes.`, `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in einigen Minuten erneut.`, `Demasiados intentos fallidos. Inténtelo de nuevo en unos minutos.`],
   'From the Registan to the Aral Sea — pick a region and start exploring.': [`Registondan Orol dengizigacha — hududni tanlang va kashf qilishni boshlang.`, `От Регистана до Аральского моря — выберите регион и начните открывать.`, `Du Registan à la mer d'Aral — choisissez une région et commencez l'exploration.`, `Vom Registan bis zum Aralsee — wählen Sie eine Region und entdecken Sie sie.`, `Del Registán al mar de Aral: elija una región y empiece a explorar.`],
   'Photo credits': [`Rasm manbalari`, `Источники фотографий`, `Crédits photo`, `Bildnachweise`, `Créditos de las fotos`],
   'Where the photographs on this website come from.': [`Saytdagi suratlar qayerdan olingani.`, `Откуда взяты фотографии на этом сайте.`, `D'où viennent les photographies de ce site.`, `Woher die Fotos auf dieser Website stammen.`, `De dónde proceden las fotografías de este sitio.`],
@@ -38,6 +41,9 @@ export const GROUP = {
 }
 
 export const GROUP_ADMIN = {
+  'Admin sections': [`Admin boʻlimlari`, `Разделы администратора`, `Sections de l'administration`, `Admin-Bereiche`, `Secciones de administración`],
+  'Autumn sale — 20% off all tours': [`Kuzgi aksiya — barcha turlarga 20% chegirma`, `Осенняя акция — скидка 20% на все туры`, `Soldes d'automne — 20 % sur tous les circuits`, `Herbstaktion — 20 % auf alle Touren`, `Oferta de otoño: 20 % en todos los tours`],
+  'Prices already include the discount.': [`Narxlarga chegirma allaqachon kiritilgan.`, `Цены уже со скидкой.`, `Les prix incluent déjà la remise.`, `Die Preise enthalten den Rabatt bereits.`, `Los precios ya incluyen el descuento.`],
   'Google Analytics ID (optional)': [`Google Analytics ID (ixtiyoriy)`, `Идентификатор Google Analytics (по желанию)`, `Identifiant Google Analytics (facultatif)`, `Google-Analytics-ID (optional)`, `ID de Google Analytics (opcional)`],
   'Group pricing': [`Guruh narxi`, `Цены для групп`, `Tarifs de groupe`, `Gruppenpreise`, `Precios de grupo`],
   'Price depends on group size': [`Narx guruh hajmiga bog'liq`, `Цена зависит от размера группы`, `Le prix dépend de la taille du groupe`, `Preis hängt von der Gruppengröße ab`, `El precio depende del tamaño del grupo`],

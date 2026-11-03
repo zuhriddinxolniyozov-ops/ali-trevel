@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarX2, Clock, MapPin, Star, Users, Loader2, CheckCircle2, CarFront, ChefHat } from 'lucide-react'
 import { Reveal, discounted, exactMoney, money } from '../hooks'
@@ -22,8 +23,10 @@ export function PriceTag({ amount, percent = 0, className = '', badge = true }) 
 
 /** A photo, or a soft placeholder when the record has none yet. */
 export function Photo({ src, alt = '', className = '', ...rest }) {
-  return src
-    ? <img src={src} alt={alt} loading="lazy" className={className} {...rest} />
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setFailed(false) }, [src])
+  return src && !failed
+    ? <img src={src} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} {...rest} />
     : <div aria-hidden="true" className={`bg-gradient-to-br from-sand to-sand-soft ${className}`} />
 }
 

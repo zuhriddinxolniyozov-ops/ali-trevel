@@ -36,7 +36,7 @@ export function Overview() {
         <StatCard icon={Building2} to="/admin/partners" value={stats.pending_partners} label={t('Partners awaiting review')} note={t('Approve or reject individually')} />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-        <section className="rounded-sm border border-navy/10 bg-white">
+        <section className="min-w-0 rounded-sm border border-navy/10 bg-white">
           <header className="flex items-center justify-between border-b border-navy/10 px-5 py-4"><h2 className="font-heading text-[24px]">{t('Latest requests')}</h2><Link to="/admin/bookings" className="text-[14px] text-turquoise-deep">{t('Open bookings')}</Link></header>
           <ul className="divide-y divide-navy/10">
             {stats.latest.map((b) => (
@@ -48,7 +48,7 @@ export function Overview() {
             {!stats.latest.length && <li className="px-5 py-8 text-[14px] text-ink">{t('No requests yet.')}</li>}
           </ul>
         </section>
-        <section className="rounded-sm border border-navy/10 bg-white">
+        <section className="min-w-0 rounded-sm border border-navy/10 bg-white">
           <header className="flex items-center justify-between border-b border-navy/10 px-5 py-4"><h2 className="font-heading text-[24px]">{t('Next departures')}</h2><Link to="/admin/bookings" className="inline-flex items-center gap-1 text-[14px] text-turquoise-deep">{t('Open bookings')}<ArrowRight className="h-3.5 w-3.5" /></Link></header>
           <ul className="divide-y divide-navy/10">
             {stats.upcoming.map((b) => (

@@ -2,6 +2,7 @@ import secrets
 from datetime import date
 
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import authenticate, get_user_model
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
@@ -18,6 +19,15 @@ from . import notifications
 from . import models, serializers as s
 
 User = get_user_model()
+
+
+class RegisterThrottle(AnonRateThrottle):
+    scope = "register"
+    rate = "20/hour"
+
+
+LOGIN_FAILS_ALLOWED = 8
+LOGIN_LOCK_SECONDS = 15 * 60
 
 
 class BookingThrottle(AnonRateThrottle):
@@ -308,6 +318,7 @@ def _auth_response(user):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([RegisterThrottle])
 def register(request):
     ser = s.RegisterSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
@@ -318,9 +329,14 @@ def register(request):
 @permission_classes([permissions.AllowAny])
 def login(request):
     email = (request.data.get("email") or "").strip().lower()
+    key = f"login-fails:{AnonRateThrottle().get_ident(request)}:{email}"
+    if cache.get(key, 0) >= LOGIN_FAILS_ALLOWED:
+        return Response({"error": "Too many failed attempts. Please try again in a few minutes."}, status=429)
     user = authenticate(username=email, password=request.data.get("password") or "")
     if not user:
+        cache.set(key, cache.get(key, 0) + 1, LOGIN_LOCK_SECONDS)
         return Response({"error": "Incorrect email or password."}, status=400)
+    cache.delete(key)
     return _auth_response(user)
 
 

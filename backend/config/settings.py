@@ -173,6 +173,9 @@ NOTIFY_ASYNC = env_bool('NOTIFY_ASYNC', True)  # send in the background so a slo
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.TokenAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    # Number of reverse proxies (nginx) in front of Django. Rate limits then use the visitor's own address from X-Forwarded-For;
+    # without it every visitor behind nginx would look like 127.0.0.1 and share one limit.
+    'NUM_PROXIES': int(env('NUM_PROXIES', '0' if DEBUG else '1')),
 }
 
 CORS_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'] + env_list('CORS_ORIGINS')

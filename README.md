@@ -228,3 +228,12 @@ When the team marks a bot booking **completed**, the traveller gets a thank-you 
 stars asks for a short comment (or *Skip*); the comment is saved as a **verified review awaiting approval** (Admin → Reviews) and the team
 is alerted. The bot then thanks the traveller, suggests following ALI TRAVEL on Instagram, YouTube, Telegram and Facebook, and says it looks
 forward to welcoming them again. A trip can be reviewed once, and only from the chat that booked it.
+
+## Sign-in protection and rate limits
+
+- After 8 wrong passwords for the same e-mail from the same address, sign-in is refused for 15 minutes (even with the right password).
+  A successful sign-in resets the count. Registration is limited to 20 per hour per address.
+- Bookings (40/hour), messages (20/hour) and reviews (8/hour) are limited per visitor. Behind nginx set `NUM_PROXIES=1` in
+  `backend/.env` (already the default when `DEBUG=false`), otherwise every visitor would look like `127.0.0.1` and share one limit.
+  The counters live in each server process, so with 3 gunicorn workers the effective limit is about three times higher; use a shared
+  cache (Redis) if you need exact limits.
