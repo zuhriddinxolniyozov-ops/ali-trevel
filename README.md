@@ -359,3 +359,6 @@ full tour. Alerts for the team in Telegram use the Uzbek tour names; the 7- and 
 
 **Silk Road map (home page)**: in **Admin -> Contact & settings -> Silk Road map** tick a city to mark it with a green pulsing dot; a click on it opens the tours of that city, or the tour chosen
 next to it. Cities not on the map yet (Qarshi, Navoi, Jizzakh, Kokand, Namangan, Andijan, Urgench) appear once ticked (`frontend/src/mapCities.js`, `SiteContent.map_cities`).
+
+Silk Road map, more: in the same Settings section **Cities you added** lets the owner put any other place of Uzbekistan on the map (name, latitude, longitude, where the name sits,
+green or not and where a click leads). The city is drawn at its real position (`project()` in `frontend/src/mapCities.js`).

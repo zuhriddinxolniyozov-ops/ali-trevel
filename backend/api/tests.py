@@ -1606,3 +1606,15 @@ class SilkRoadMapSettingsTests(APITestCase):
         for bad in ({"khiva": {"green": True, "target": "https://evil.example/"}}, {"khiva": {"green": True, "target": "javascript:alert(1)"}}, {"Khiva!": {"green": True, "target": ""}}, ["khiva"]):
             self.assertEqual(self.api.put("/api/site-content/", {"map_cities": bad}, format="json").status_code, 400, bad)
         self.assertEqual(APIClient().put("/api/site-content/", {"map_cities": {}}, format="json").status_code, 403)
+
+    def test_the_owner_adds_a_city_of_their_own_with_its_place_on_the_map(self):
+        city = {"name": "Zomin", "lat": "39.96", "lon": 68.4, "side": "right", "green": True, "target": "/tours/silk-road-7-day-journey"}
+        self.assertEqual(self.api.put("/api/site-content/", {"map_cities": {"c-abc123": city, "c-empty1": {"name": "", "lat": "", "lon": "", "green": True, "target": ""}}}, format="json").status_code, 200)
+        saved = APIClient().get("/api/site-content/").json()["map_cities"]
+        self.assertEqual(saved["c-abc123"], {"green": True, "target": "/tours/silk-road-7-day-journey", "name": "Zomin", "lat": 39.96, "lon": 68.4, "side": "right"})
+        self.assertNotIn("c-empty1", saved)  # a row left empty is dropped
+
+    def test_a_city_outside_uzbekistan_or_without_numbers_is_refused(self):
+        for bad in ({"name": "Paris", "lat": 48.85, "lon": 2.35}, {"name": "Nowhere", "lat": "abc", "lon": 66}, {"name": "x" * 41, "lat": 40, "lon": 66}):
+            answer = self.api.put("/api/site-content/", {"map_cities": {"c-bad001": dict(bad, green=True, target="")}}, format="json")
+            self.assertEqual(answer.status_code, 400, bad)

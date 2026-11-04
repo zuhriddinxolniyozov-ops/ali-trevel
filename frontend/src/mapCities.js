@@ -10,6 +10,16 @@ export const CITIES = [
   ['urgench', 'Urgench', 'khorezm', 'above', false, false],
 ]
 
+// Where a latitude and longitude fall on the 1040 x 687 drawing of Uzbekistan (the same projection as the outline).
+const PROJ = { k: 0.754709580222772, minx: 42.24550195430747, miny: -45.558719, sc: 77.15764692033433 }
+export const project = (lat, lon) => [(lon * PROJ.k - PROJ.minx) * PROJ.sc + 20, (-lat - PROJ.miny) * PROJ.sc + 20]
+
+/** The cities the owner added in Settings, as map entries with their own position. */
+export function customCities(settings) {
+  return Object.entries(settings?.map_cities || {}).filter(([, v]) => v && v.name && v.lat != null && v.lon != null)
+    .map(([key, v]) => ({ key, name: v.name, side: v.side || 'above', pos: project(Number(v.lat), Number(v.lon)) }))
+}
+
 /** What the owner chose in Settings (green or not, and where a click leads) for each city. */
 export function mapState(settings) {
   const chosen = settings?.map_cities || {}

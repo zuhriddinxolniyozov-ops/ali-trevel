@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Reveal, useSettings } from '../hooks'
 import { useT } from '../i18n'
-import { CITIES, cityLink, mapState } from '../mapCities'
+import { CITIES, cityLink, customCities, mapState } from '../mapCities'
 import { CITY, OUTLINE } from '../silkRoadGeo'
 
 /** Smooth curve through the given cities (Catmull-Rom turned into Bezier segments). */
@@ -26,7 +26,8 @@ const GREEN_FILL = '#22c55e'
 function useStops() {
   const { settings } = useSettings()
   const state = mapState(settings)
-  return CITIES.filter(([key, , , , , always]) => always || state(key).green).map(([key, name, slug, side, big]) => ({ key, name, side, big, green: state(key).green, link: cityLink(key, slug, state) }))
+  const own = customCities(settings).map(({ key, name, side, pos }) => ({ key, name, side, big: false, pos, green: state(key).green, link: cityLink(key, null, state) }))
+  return [...CITIES.filter(([key, , , , , always]) => always || state(key).green).map(([key, name, slug, side, big]) => ({ key, name, side, big, pos: CITY[key], green: state(key).green, link: cityLink(key, slug, state) })), ...own]
 }
 
 /** Only the lines of the map (border and Silk Road, no background) for the home page's photo: light lines on the picture, cities link to their pages. */
@@ -39,8 +40,8 @@ export function HeroRoute({ className = '' }) {
       {BRANCHES.map((d) => <path key={d} d={d} fill="none" stroke="#e7c97a" strokeWidth="4" strokeLinecap="round" strokeDasharray="2 10" />)}
       <path d={MAIN} fill="none" stroke="#e7c97a" strokeWidth="11" strokeLinecap="round" opacity="0.25" />
       <path d={MAIN} fill="none" className="silk-flow" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeDasharray="14 10" />
-      {stops.map(({ key, name, link, side, big, green }) => {
-        const [x, y] = CITY[key]
+      {stops.map(({ key, name, link, side, big, green, pos }) => {
+        const [x, y] = pos
         const marker = (<>
           {green
             ? <><circle cx={x} cy={y} r="34" fill="transparent" /><circle cx={x} cy={y} r="13" fill={GREEN_FILL} className="silk-ping" /><circle cx={x} cy={y} r="13" fill={GREEN_FILL} className="silk-ping silk-ping-late" />
@@ -72,8 +73,8 @@ export default function SilkRoadMap() {
             {BRANCHES.map((d) => <path key={d} d={d} fill="none" className="stroke-gold" strokeWidth="4" strokeLinecap="round" strokeDasharray="2 10" />)}
             <path d={MAIN} fill="none" className="stroke-gold" strokeWidth="10" strokeLinecap="round" opacity="0.3" />
             <path d={MAIN} fill="none" className="silk-flow stroke-navy" strokeWidth="4" strokeLinecap="round" strokeDasharray="14 10" />
-            {stops.map(({ key, name, link, side, big, green }) => {
-              const [x, y] = CITY[key]
+            {stops.map(({ key, name, link, side, big, green, pos }) => {
+              const [x, y] = pos
               const marker = (<>
                 {green
                   ? <><circle cx={x} cy={y} r="34" fill="transparent" /><circle cx={x} cy={y} r="13" fill={GREEN_FILL} className="silk-ping" /><circle cx={x} cy={y} r="13" fill={GREEN_FILL} className="silk-ping silk-ping-late" />

@@ -61,12 +61,27 @@ class SiteContentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Choose the cities of the map.")
         clean = {}
         for key, item in value.items():
-            if not re.fullmatch(r"[a-z]{3,30}", str(key)) or not isinstance(item, dict):
+            if not re.fullmatch(r"[a-z0-9-]{3,30}", str(key)) or not isinstance(item, dict):
                 raise serializers.ValidationError("A city of the map is not valid.")
+            if str(key).startswith("c-") and not str(item.get("name") or "").strip():
+                continue  # a new row of "Cities you added" that was left empty
             target = str(item.get("target") or "").strip()
             if target and not re.fullmatch(r"/(tours|destinations)/[a-z0-9-]{1,80}(#[a-z]+)?", target):
                 raise serializers.ValidationError("A link must lead to a tour or a destination of this website.")
-            clean[key] = {"green": bool(item.get("green")), "target": target}
+            entry = {"green": bool(item.get("green")), "target": target}
+            if item.get("name") not in (None, "") or item.get("lat") not in (None, ""):  # a city added by the owner: name and place on the map
+                name = str(item.get("name") or "").strip()
+                try:
+                    lat, lon = float(item.get("lat")), float(item.get("lon"))
+                except (TypeError, ValueError):
+                    raise serializers.ValidationError("Write the latitude and the longitude of the city as numbers.")
+                if not name or len(name) > 40:
+                    raise serializers.ValidationError("Write the name of the city (up to 40 letters).")
+                if not (36 <= lat <= 46 and 55 <= lon <= 74):
+                    raise serializers.ValidationError("The city must be inside Uzbekistan: latitude 36 to 46, longitude 55 to 74.")
+                side = str(item.get("side") or "above")
+                entry.update(name=name, lat=round(lat, 5), lon=round(lon, 5), side=side if side in ("above", "below", "left", "right") else "above")
+            clean[key] = entry
         return clean
 
     def validate_extra_contacts(self, value):
