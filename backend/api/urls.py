@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import accounting, views
+from .telegram_webhook import telegram_webhook
 
 router = DefaultRouter()
 router.register("destinations", views.DestinationViewSet)
@@ -42,4 +43,5 @@ urlpatterns = [
     path("auth/login/", views.login),
     path("auth/logout/", views.logout),
     path("auth/me/", views.me),
+    path("telegram/webhook/", telegram_webhook),
 ]

@@ -1626,3 +1626,64 @@ class SilkRoadMapSettingsTests(APITestCase):
         self.assertEqual(APIClient().get("/api/site-content/").json()["map_cities"][key]["target"], dot["target"])
         dot_without_place = dict(dot, lat="", lon="")
         self.assertEqual(self.api.put("/api/site-content/", {"map_cities": {key: dot_without_place}}, format="json").status_code, 400)
+
+
+@override_settings(TELEGRAM_BOT_TOKEN="123:abc", TELEGRAM_CHAT_ID="", SITE_URL="https://alitravel.example", SECURE_SSL_REDIRECT=False)
+class TelegramWebhookTests(APITestCase):
+    """The live server gets bot messages from Telegram over https instead of polling."""
+
+    def post(self, update, secret=None):
+        from .telegram_bot import webhook_secret
+        import json as _json
+        headers = {"HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN": webhook_secret() if secret is None else secret}
+        return self.client.generic("POST", "/api/telegram/webhook/", _json.dumps(update), content_type="application/json", **headers)
+
+    def test_a_call_without_the_secret_is_refused_and_nothing_is_sent(self):
+        from unittest import mock
+        api = FakeTelegram()
+        with mock.patch("api.telegram_webhook.make_call", return_value=api):
+            self.assertEqual(self.post({"message": {"chat": {"id": 5}, "from": {}, "text": "/start"}}, secret="wrong").status_code, 403)
+        self.assertEqual(api.sent, [])
+
+    def test_start_sent_through_the_webhook_is_answered_with_the_language_choice(self):
+        from unittest import mock
+        api = FakeTelegram()
+        with mock.patch("api.telegram_webhook.make_call", return_value=lambda method, payload=None: api(method, payload)):
+            response = self.post({"update_id": 1, "message": {"chat": {"id": 5}, "from": {"first_name": "Ali"}, "text": "/start"}})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(api.texts())
+        self.assertIn("lang:uz", [b["callback_data"] for b in api.buttons()])
+
+    def test_a_broken_update_still_gets_200_so_telegram_does_not_resend_it_forever(self):
+        from unittest import mock
+        def boom(method, payload=None):
+            raise RuntimeError("telegram down")
+        with mock.patch("api.telegram_webhook.make_call", return_value=boom):
+            self.assertEqual(self.post({"update_id": 2, "message": {"chat": {"id": 5}, "from": {}, "text": "/start"}}).status_code, 200)
+
+    def test_polling_refuses_to_start_while_the_website_has_the_webhook(self):
+        from unittest import mock
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        calls = []
+        def fake(method, payload=None, timeout=20):
+            calls.append(method)
+            return {"getMe": {"username": "alitraveluzbot"}, "getWebhookInfo": {"url": "https://alitravel.example/api/telegram/webhook/"}}.get(method, True)
+        with mock.patch("api.management.commands.telegram_bot.make_call", return_value=fake):
+            with self.assertRaises(CommandError):
+                call_command("telegram_bot", "--once")
+        self.assertNotIn("deleteWebhook", calls)
+
+    def test_webhook_mode_registers_the_site_address_with_the_secret(self):
+        from unittest import mock
+        from django.core.management import call_command
+        from .telegram_bot import webhook_secret
+        calls = []
+        def fake(method, payload=None, timeout=20):
+            calls.append((method, payload))
+            return {"getMe": {"username": "alitraveluzbot"}, "getWebhookInfo": {"url": ""}}.get(method, True)
+        with mock.patch("api.management.commands.telegram_bot.make_call", return_value=fake):
+            call_command("telegram_bot", "--webhook", "--once", stdout=__import__("io").StringIO())
+        hook = [p for m, p in calls if m == "setWebhook"][0]
+        self.assertEqual(hook["url"], "https://alitravel.example/api/telegram/webhook/")
+        self.assertEqual(hook["secret_token"], webhook_secret())

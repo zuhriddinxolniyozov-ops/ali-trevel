@@ -665,3 +665,36 @@ class Bot:
                     lines.append(f"{label}: {esc(value)}")
         lines.append(f"🌐 {site()}")
         self.send(chat, "\n".join(lines), rows=[[button(tx("menu_ask", lang), "ask")], self.back_row(lang)])
+
+
+# ---- talking to Telegram (shared by polling and the webhook) ------------------------
+def make_call(token):
+    """A `call(method, payload)` function for the Telegram Bot API."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    def call(method, payload=None, timeout=20):
+        request = urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}", data=json.dumps(payload or {}).encode(),
+                                         headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.load(response)["result"]
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode(errors="replace")[:300]
+            raise RuntimeError(f"Telegram {method} failed: {error.code} {detail}")
+
+    return call
+
+
+WEBHOOK_PATH = "/api/telegram/webhook/"
+
+
+def webhook_secret():
+    """The secret Telegram sends back with every webhook call, derived from SECRET_KEY (letters, digits, _ and - only)."""
+    import hashlib
+    return hashlib.sha256(f"telegram-webhook:{settings.TELEGRAM_BOT_TOKEN}:{settings.SECRET_KEY}".encode()).hexdigest()
+
+
+def webhook_url():
+    return site(WEBHOOK_PATH)

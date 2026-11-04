@@ -378,6 +378,9 @@ unpacks the project, loads your database and photos the first time, starts the w
 ```
 
 Before the first run: in the AWS console open the instance's **security group** and allow inbound TCP **22, 80 and 443**; stop the Telegram bot on your own computer (the server runs it now).
+With a domain (https) the server's bot runs as a **webhook**: Telegram sends each message to `https://<domain>/api/telegram/webhook/`
+(checked with a secret derived from `SECRET_KEY`), and `manage.py telegram_bot --webhook` keeps it registered. While the webhook is
+registered, `manage.py telegram_bot` on another computer refuses to start (`--force` takes the bot over on purpose).
 Run it again after any change to update the server: the live database and the server's `SECRET_KEY` are kept (`-ReplaceData` overwrites the database, `-NoData` sends no database or photos).
 The agent works on Ubuntu (22.04 or 24.04) and Amazon Linux 2023; it needs the Windows "OpenSSH Client" feature, and Node.js only if you want it to rebuild the website first.
 Never commit the `.pem` file; the agent only hands it to `ssh`.

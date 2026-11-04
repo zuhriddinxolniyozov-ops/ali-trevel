@@ -142,6 +142,14 @@ else
   echo "No domain given: the site is served over http at the server's address."
 fi
 
+# With https the bot gets its messages through the website (webhook): a copy polling on another computer cannot take it away.
+if [ -n "$DOMAIN" ] && [ -d "/etc/letsencrypt/live/$DOMAIN" ] && grep -qE '^TELEGRAM_BOT_TOKEN=.+' "$APP/backend/.env"; then
+  sed -i 's|manage.py telegram_bot.*$|manage.py telegram_bot --webhook|' /etc/systemd/system/alitravel-bot.service
+  systemctl daemon-reload
+  systemctl restart alitravel-bot
+  echo "Telegram bot: answered by the website (webhook)"
+fi
+
 say "Checking"
 sleep 3
 curl -fsS -o /dev/null -w "API   : %{http_code}\n" http://127.0.0.1:8000/api/site-content/ -H 'Host: localhost' || warn "the API did not answer: see  journalctl -u alitravel -n 50"
