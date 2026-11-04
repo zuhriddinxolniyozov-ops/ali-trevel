@@ -365,3 +365,19 @@ green or not and where a click leads). The city is drawn at its real position (`
 
 **Admin -> Map** (own section of the console): every tour can be switched on as a green pulsing dot on the home page map (pick its place or write latitude/longitude; the dot opens that tour; a tour added later
 shows up in the list), plus the cities of the map and "Cities you added" (moved here from Settings; `frontend/src/admin/AdminMap.jsx`).
+
+## Putting the site on an AWS server with one command
+
+`deploy/aws_deploy.ps1` is a deploy "agent" for Windows PowerShell. It logs in to the server with your key (`%USERPROFILE%\.ssh\zuhriddin.pem`), installs Python, nginx and certbot,
+unpacks the project, loads your database and photos the first time, starts the website and the Telegram bot as services and, when you give a domain, turns on HTTPS.
+
+```powershell
+.\deploy\aws_deploy.ps1 -ServerHost <public IP of the instance>                       # http://<IP>
+.\deploy\aws_deploy.ps1 -ServerHost <IP> -Domain alitravel.uz -Email you@example.com  # https://alitravel.uz (DNS A records must point to the IP)
+.\deploy\aws_deploy.ps1 -ServerHost <IP> -DryRun                                      # only packs, shows the plan, does not connect
+```
+
+Before the first run: in the AWS console open the instance's **security group** and allow inbound TCP **22, 80 and 443**; stop the Telegram bot on your own computer (the server runs it now).
+Run it again after any change to update the server: the live database and the server's `SECRET_KEY` are kept (`-ReplaceData` overwrites the database, `-NoData` sends no database or photos).
+The agent works on Ubuntu (22.04 or 24.04) and Amazon Linux 2023; it needs the Windows "OpenSSH Client" feature, and Node.js only if you want it to rebuild the website first.
+Never commit the `.pem` file; the agent only hands it to `ssh`.

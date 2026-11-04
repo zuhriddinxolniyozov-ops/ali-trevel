@@ -216,7 +216,6 @@ SHARED = {
     "Hands-on experience": tr("Amaliy tajriba", "Практический опыт", "Expérience pratique", "Mitmach-Erlebnis", "Experiencia práctica"),
 }
 
-
 def register_phrases():
     PHRASES.update(TIMES)
     PHRASES.update(SHARED)
