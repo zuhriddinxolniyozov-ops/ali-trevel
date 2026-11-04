@@ -88,7 +88,10 @@ body { overflow-x: clip; }
    next one. On tablets and computers the same rows stay ordinary grids. Cards inside a row drop their long texts on phones. */
 @media (max-width: 639px) {
   .swipe-row {
-    display: flex !important; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+    /* overflow-y must be hidden: with overflow-x auto the row would also scroll a few pixels up and down (the cards' reveal
+       animation), and Android then hands the whole finger move to the row, so the page could not be scrolled over a card */
+    display: flex !important; gap: 12px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
     margin-inline: -1.25rem; padding-inline: 1.25rem; scroll-padding-inline: 1.25rem; padding-bottom: 6px; scrollbar-width: none;
   }
   .swipe-row::-webkit-scrollbar { display: none; }

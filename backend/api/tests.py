@@ -1723,3 +1723,65 @@ class TelegramWebhookTests(APITestCase):
             self.assertEqual(bool(hooks), expect_reset, telegram_ip)
             if hooks:
                 self.assertEqual(hooks[0]["ip_address"], "52.65.166.20")
+
+
+class ChangeCredentialsTests(APITestCase):
+    """The admin changes the sign-in e-mail and the password from the admin panel."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        from rest_framework.authtoken.models import Token
+        self.user = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "Old-pass-123", is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def post(self, **data):
+        return self.client.post("/api/auth/credentials/", data, format="json")
+
+    def test_wrong_current_password_changes_nothing(self):
+        res = self.post(current_password="nope", new_password="Brand-new-pass-77")
+        self.assertEqual(res.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Old-pass-123"))
+
+    def test_new_password_signs_other_devices_out_and_keeps_this_one(self):
+        res = self.post(current_password="Old-pass-123", new_password="Brand-new-pass-77")
+        self.assertEqual(res.status_code, 200, res.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Brand-new-pass-77"))
+        self.assertNotEqual(res.data["token"], self.token.key)                 # the old token no longer works
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {res.data['token']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+        self.client.credentials()
+        login = self.client.post("/api/auth/login/", {"email": "boss@example.com", "password": "Brand-new-pass-77"}, format="json")
+        self.assertEqual(login.status_code, 200)
+
+    def test_new_login_is_used_to_sign_in(self):
+        res = self.post(current_password="Old-pass-123", new_email="  Owner@AliTravel.uz ")
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data["user"]["email"], "owner@alitravel.uz")
+        self.client.credentials()
+        self.assertEqual(self.client.post("/api/auth/login/", {"email": "owner@alitravel.uz", "password": "Old-pass-123"}, format="json").status_code, 200)
+        self.assertEqual(self.client.post("/api/auth/login/", {"email": "boss@example.com", "password": "Old-pass-123"}, format="json").status_code, 400)
+
+    def test_weak_password_taken_email_and_empty_request_are_refused(self):
+        get_user_model().objects.create_user("other@example.com", "other@example.com", "x")
+        for data in ({"new_password": "short"}, {"new_password": "12345678901"}, {"new_password": "password123"},
+                     {"new_email": "other@example.com"}, {"new_email": "not-an-email"}, {}):
+            res = self.post(current_password="Old-pass-123", **data)
+            self.assertEqual(res.status_code, 400, data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Old-pass-123"))
+        self.assertEqual(self.user.username, "boss@example.com")
+
+    def test_guessing_the_current_password_is_stopped(self):
+        for _ in range(12):
+            self.post(current_password="guess", new_password="Brand-new-pass-77")
+        self.assertEqual(self.post(current_password="Old-pass-123", new_password="Brand-new-pass-77").status_code, 429)
+
+    def test_signed_out_visitor_cannot_use_it(self):
+        self.client.credentials()
+        self.assertIn(self.post(current_password="Old-pass-123", new_password="Brand-new-pass-77").status_code, (401, 403))

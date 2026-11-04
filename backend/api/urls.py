@@ -43,5 +43,6 @@ urlpatterns = [
     path("auth/login/", views.login),
     path("auth/logout/", views.logout),
     path("auth/me/", views.me),
+    path("auth/credentials/", views.change_credentials),
     path("telegram/webhook/", telegram_webhook),
 ]

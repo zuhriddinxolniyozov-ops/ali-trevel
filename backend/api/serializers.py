@@ -172,6 +172,26 @@ class UserSerializer(serializers.ModelSerializer):
         return "admin" if user.is_staff else "user"
 
 
+class ChangeCredentialsSerializer(serializers.Serializer):
+    """A new sign-in e-mail and/or a new password for the signed-in account (both optional; the view needs at least one)."""
+    new_email = serializers.EmailField(required=False, allow_blank=True)
+    new_password = serializers.CharField(required=False, allow_blank=True, write_only=True, trim_whitespace=False)
+
+    def validate_new_email(self, value):
+        value = (value or "").strip().lower()
+        user = self.context["user"]
+        if value and value != user.username and User.objects.filter(username__iexact=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return "" if value == user.username else value
+
+    def validate_new_password(self, value):
+        if not value:
+            return ""
+        from django.contrib.auth.password_validation import validate_password
+        validate_password(value, self.context["user"])   # length, too common, all digits, too close to the e-mail
+        return value
+
+
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)

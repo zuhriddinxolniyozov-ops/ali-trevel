@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BadgePercent, Bell, MapPinned, Building2, CalendarDays, Calculator, Coins, Handshake, Scale, ChevronDown, Compass, ExternalLink, FileText, Globe, Layers, LayoutGrid, Mail, PencilRuler, Search, Settings, Star, Users } from 'lucide-react'
+import { BadgePercent, Bell, MapPinned, Building2, CalendarDays, Calculator, Coins, Handshake, Scale, ChevronDown, Compass, ExternalLink, FileText, Globe, KeyRound, Layers, LayoutGrid, Mail, PencilRuler, Search, Settings, Star, Users } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
@@ -24,6 +24,7 @@ const NAV = [
   { to: '/admin/content', label: 'Homepage content', icon: FileText },
   { to: '/admin/legal', label: 'Legal pages', icon: Scale },
   { to: '/admin/settings', label: 'Contact & settings', icon: Settings },
+  { to: '/admin/account', label: 'Login and password', icon: KeyRound },
 ]
 
 function SectionSearch() {
@@ -141,6 +142,7 @@ export default function AdminLayout() {
               {menu && (
                 <div className="absolute right-0 z-30 mt-2 w-52 rounded-md border border-navy/10 bg-white p-1 text-[14px] shadow-lg">
                   <p className="px-3 py-2 text-[12px] text-ink">{user?.email}</p>
+                  <Link to="/admin/account" className="block rounded px-3 py-2 hover:bg-sand-soft">{t('Login and password')}</Link>
                   <Link to="/" className="block rounded px-3 py-2 hover:bg-sand-soft">{t('View public site')}</Link>
                   <button onClick={logout} className="block w-full rounded px-3 py-2 text-left hover:bg-sand-soft">{t('Sign out')}</button>
                 </div>

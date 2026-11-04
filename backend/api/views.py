@@ -399,6 +399,36 @@ def logout(request):
     return Response({"ok": True})
 
 
+@api_view(["POST"])
+def change_credentials(request):
+    """Change the sign-in e-mail (the login) and/or the password of the signed-in account.
+
+    The current password is always required. Changing the password signs every other device out (their tokens are deleted)
+    and returns a fresh token for this one, so the person stays signed in here.
+    """
+    user = request.user
+    key = f"credential-fails:{user.pk}"
+    if cache.get(key, 0) >= LOGIN_FAILS_ALLOWED:
+        return Response({"error": "Too many failed attempts. Please try again in a few minutes."}, status=429)
+    if not user.check_password(request.data.get("current_password") or ""):
+        cache.set(key, cache.get(key, 0) + 1, LOGIN_LOCK_SECONDS)
+        return Response({"error": "The current password is not correct.", "fields": {"current_password": ["The current password is not correct."]}}, status=400)
+    cache.delete(key)
+    ser = s.ChangeCredentialsSerializer(data=request.data, context={"user": user})
+    ser.is_valid(raise_exception=True)
+    email, password = ser.validated_data.get("new_email"), ser.validated_data.get("new_password")
+    if not email and not password:
+        return Response({"error": "Write a new login or a new password."}, status=400)
+    if email:
+        user.username = user.email = email
+    if password:
+        user.set_password(password)
+    user.save()
+    if password:
+        Token.objects.filter(user=user).delete()   # every other device signs in again with the new password
+    return _auth_response(user)
+
+
 @api_view(["GET", "PATCH"])
 def me(request):
     if request.method == "PATCH" and "full_name" in request.data:
