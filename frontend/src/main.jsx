@@ -17,6 +17,7 @@ import { EmptyState } from './components/ui'
 import AdminLayout from './admin/AdminLayout'
 import { Bookings, Customers, Enquiries, Overview, Partners, Settings } from './admin/Pages'
 import { AdminListings, AdminTours } from './admin/Catalogs'
+import AdminMap from './admin/AdminMap'
 import Content from './admin/Content'
 import SiteEditor from './admin/SiteEditor'
 import Accounting from './admin/Accounting'
@@ -50,6 +51,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="partners" element={<Partners />} />
               <Route path="enquiries" element={<Enquiries />} />
               <Route path="content" element={<Content />} />
+              <Route path="map" element={<AdminMap />} />
               <Route path="settings" element={<Settings />} />
             </Route>
             <Route element={<Layout />}>

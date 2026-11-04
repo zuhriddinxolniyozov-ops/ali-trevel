@@ -362,3 +362,6 @@ next to it. Cities not on the map yet (Qarshi, Navoi, Jizzakh, Kokand, Namangan,
 
 Silk Road map, more: in the same Settings section **Cities you added** lets the owner put any other place of Uzbekistan on the map (name, latitude, longitude, where the name sits,
 green or not and where a click leads). The city is drawn at its real position (`project()` in `frontend/src/mapCities.js`).
+
+**Admin -> Map** (own section of the console): every tour can be switched on as a green pulsing dot on the home page map (pick its place or write latitude/longitude; the dot opens that tour; a tour added later
+shows up in the list), plus the cities of the map and "Cities you added" (moved here from Settings; `frontend/src/admin/AdminMap.jsx`).

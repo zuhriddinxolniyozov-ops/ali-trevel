@@ -6,7 +6,6 @@ import { money, useFetch } from '../hooks'
 import { useT } from '../i18n'
 import { Spinner } from '../components/ui'
 import { StatusPill, cap } from '../pages/Auth'
-import { CITIES } from '../mapCities'
 
 function StatCard({ icon: Icon, value, label, note, to }) {
   const body = (
@@ -241,12 +240,9 @@ const SETTING_FIELDS = [
 export function Settings() {
   const t = useT()
   const { data } = useFetch('/site-content/')
-  const { data: allTours } = useFetch('/tours/?all=1', { list: true })
-  const mapTours = allTours.filter((x) => !x.parent_slug && Number(x.price_from_usd) > 0)
   const [form, setForm] = useState(null)
   const [saved, setSaved] = useState(false)
   const current = form || data
-  const ownCities = Object.entries(current?.map_cities || {}).filter(([, v]) => v && v.name !== undefined)  // cities the owner added carry their own name
   if (!current) return <Spinner />
   const save = async (e) => { e.preventDefault(); await api.put('/site-content/', current); setSaved(true) }
   return (
@@ -255,45 +251,6 @@ export function Settings() {
       <div className="grid gap-4 sm:grid-cols-2">
         {SETTING_FIELDS.map(([k, label]) => <label key={k} className="label">{t(label)}<input className="input" value={current[k] || ''} onChange={(e) => { setSaved(false); setForm({ ...current, [k]: e.target.value }) }} /></label>)}
       </div>
-      <fieldset className="mt-8 rounded-sm border border-navy/12 p-4">
-        <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Silk Road map on the home page')}</legend>
-        <p className="text-[13px] text-ink">{t('Tick a city to mark it with a green pulsing dot. A click on it opens the tours of that city, or the tour you choose. A city that is not on the map yet appears once ticked.')}</p>
-        <div className="mt-3 divide-y divide-navy/10 rounded-sm border border-navy/10 bg-white">
-          {CITIES.map(([key, name]) => {
-            const chosen = (current.map_cities || {})[key] || { green: false, target: '' }
-            const change = (patch) => { setSaved(false); setForm({ ...current, map_cities: { ...(current.map_cities || {}), [key]: { ...chosen, ...patch } } }) }
-            return (
-              <div key={key} className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[170px_1fr]">
-                <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={!!chosen.green} onChange={(e) => change({ green: e.target.checked })} />
-                  <span className={`inline-block h-3 w-3 rounded-full ${chosen.green ? 'bg-[#22c55e]' : 'bg-navy/25'}`} aria-hidden="true" />{t(name)}</label>
-                <select aria-label={t('A click opens')} disabled={!chosen.green} className="input !mt-0 disabled:opacity-50" value={chosen.target || ''} onChange={(e) => change({ target: e.target.value })}>
-                  <option value="">{t('The tours of this city')}</option>
-                  {mapTours.map((x) => <option key={x.slug} value={`/tours/${x.slug}`}>{x.title}</option>)}
-                </select>
-              </div>
-            )
-          })}
-        </div>
-        <h4 className="mt-5 font-medium text-navy">{t('Cities you added')}</h4>
-        <p className="text-[12.5px] text-ink">{t('Add any other place of Uzbekistan: write its name and its latitude and longitude (in Google Maps right-click the place and click the numbers to copy them).')}</p>
-        <div className="mt-2 space-y-2">
-          {ownCities.map(([key, c]) => {
-            const change = (patch) => { setSaved(false); setForm({ ...current, map_cities: { ...current.map_cities, [key]: { ...c, ...patch } } }) }
-            return (
-              <div key={key} className="grid gap-2 rounded-sm bg-sand-soft/50 p-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr_1.1fr_1.6fr_auto]">
-                <label className="label">{t('Name')}<input className="input" maxLength={40} value={c.name || ''} onChange={(e) => change({ name: e.target.value })} /></label>
-                <label className="label">{t('Latitude')}<input type="number" step="any" className="input" value={c.lat ?? ''} onChange={(e) => change({ lat: e.target.value })} /></label>
-                <label className="label">{t('Longitude')}<input type="number" step="any" className="input" value={c.lon ?? ''} onChange={(e) => change({ lon: e.target.value })} /></label>
-                <label className="label">{t('Name placed')}<select className="input" value={c.side || 'above'} onChange={(e) => change({ side: e.target.value })}>{[['above', 'above'], ['below', 'below'], ['left', 'to the left'], ['right', 'to the right']].map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}</select></label>
-                <label className="label">{t('A click opens')}<select className="input" value={c.target || ''} onChange={(e) => change({ target: e.target.value })}><option value="">{t('Nothing')}</option>{mapTours.map((x) => <option key={x.slug} value={`/tours/${x.slug}`}>{x.title}</option>)}</select></label>
-                <div className="mt-6 flex items-center gap-2"><label className="flex items-center gap-1 text-[13px]"><input type="checkbox" checked={!!c.green} onChange={(e) => change({ green: e.target.checked })} />{t('Green')}</label>
-                  <button type="button" aria-label={t('Remove this line')} className="h-10 rounded-full border border-red-200 px-3 text-destructive hover:bg-red-50" onClick={() => { setSaved(false); const rest = { ...current.map_cities }; delete rest[key]; setForm({ ...current, map_cities: rest }) }}><Trash2 className="mx-auto h-4 w-4" /></button></div>
-              </div>
-            )
-          })}
-        </div>
-        <button type="button" className="btn-outline mt-3 !h-9" onClick={() => { setSaved(false); setForm({ ...current, map_cities: { ...(current.map_cities || {}), [`c-${Math.random().toString(36).slice(2, 8)}`]: { name: '', lat: '', lon: '', side: 'above', green: true, target: '' } } }) }}><Plus className="h-4 w-4" />{t('Add a city')}</button>
-      </fieldset>
       <fieldset className="mt-8 rounded-sm border border-navy/12 p-4">
         <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('More contact lines')}</legend>
         <p className="text-[13px] text-ink">{t('Add any extra line you like (WhatsApp, a second office, a licence number…). It appears under the contact details in the footer and on the contact page.')}</p>

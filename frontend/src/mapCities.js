@@ -20,6 +20,17 @@ export function customCities(settings) {
     .map(([key, v]) => ({ key, name: v.name, side: v.side || 'above', pos: project(Number(v.lat), Number(v.lon)) }))
 }
 
+// Places the owner can pick for a tour's dot: [key, English name, latitude, longitude]
+export const PLACES = [
+  ['tashkent', 'Tashkent', 41.3, 69.24], ['samarkand', 'Samarkand', 39.65, 66.96], ['bukhara', 'Bukhara', 39.77, 64.42], ['khiva', 'Khiva', 41.38, 60.36],
+  ['fergana', 'Fergana', 40.38, 71.78], ['shahrisabz', 'Shahrisabz', 39.05, 66.83], ['termez', 'Termez', 37.22, 67.28], ['nukus', 'Nukus', 42.46, 59.6],
+  ['qarshi', 'Qarshi', 38.86, 65.79], ['navoi', 'Navoi', 40.1, 65.38], ['jizzakh', 'Jizzakh', 40.12, 67.84], ['kokand', 'Kokand', 40.53, 70.94],
+  ['namangan', 'Namangan', 41.0, 71.67], ['andijan', 'Andijan', 40.78, 72.34], ['urgench', 'Urgench', 41.55, 60.63], ['margilan', 'Margilan', 40.47, 71.72],
+  ['nurata', 'Nurata', 40.56, 65.69], ['moynaq', 'Moynaq', 43.77, 59.03], ['gijduvan', 'Gijduvan', 40.1, 64.68], ['zomin', 'Zomin', 39.96, 68.4],
+]
+// the place a tour's dot starts at, by the tour's destination
+export const PLACE_OF_DESTINATION = { samarkand: 'samarkand', bukhara: 'bukhara', khorezm: 'khiva', tashkent: 'tashkent', fergana: 'fergana', karakalpakstan: 'nukus', kashkadarya: 'shahrisabz', nurata: 'nurata' }
+
 /** What the owner chose in Settings (green or not, and where a click leads) for each city. */
 export function mapState(settings) {
   const chosen = settings?.map_cities || {}

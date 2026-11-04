@@ -1618,3 +1618,11 @@ class SilkRoadMapSettingsTests(APITestCase):
         for bad in ({"name": "Paris", "lat": 48.85, "lon": 2.35}, {"name": "Nowhere", "lat": "abc", "lon": 66}, {"name": "x" * 41, "lat": 40, "lon": 66}):
             answer = self.api.put("/api/site-content/", {"map_cities": {"c-bad001": dict(bad, green=True, target="")}}, format="json")
             self.assertEqual(answer.status_code, 400, bad)
+
+    def test_a_tour_can_be_a_green_dot_on_the_map_and_its_dot_leads_to_that_tour(self):
+        dot = {"name": "Nurota", "lat": 40.56, "lon": 65.69, "side": "above", "green": True, "target": "/tours/nurata-mountains-cultural-journey"}
+        key = "t-nurata-mountains-cultural-journey"[:30]
+        self.assertEqual(self.api.put("/api/site-content/", {"map_cities": {key: dot}}, format="json").status_code, 200)
+        self.assertEqual(APIClient().get("/api/site-content/").json()["map_cities"][key]["target"], dot["target"])
+        dot_without_place = dict(dot, lat="", lon="")
+        self.assertEqual(self.api.put("/api/site-content/", {"map_cities": {key: dot_without_place}}, format="json").status_code, 400)
