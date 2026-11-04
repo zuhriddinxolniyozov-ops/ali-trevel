@@ -16,11 +16,12 @@ from django.core.management.base import BaseCommand, CommandError
 from api import notifications
 
 DESCRIPTIONS = {
-    "": "ALI TRAVEL: tours, cooking classes, prices and bookings in Uzbekistan. Press Start and choose your language.",
-    "uz": "ALI TRAVEL: Oʻzbekistondagi turlar, oshpazlik darslari, narxlar va bronlar. Start ni bosing va tilni tanlang.",
-    "ru": "ALI TRAVEL: туры, кулинарные занятия, цены и бронирование в Узбекистане. Нажмите Start и выберите язык.",
+    "": "ALI TRAVEL: tours, cooking classes, prices and bookings in Uzbekistan. Press Start and choose your language.\n\n🌐 Website: alitravel.uz",
+    "uz": "ALI TRAVEL: Oʻzbekistondagi turlar, oshpazlik darslari, narxlar va bronlar. Start ni bosing va tilni tanlang.\n\n🌐 Sayt: alitravel.uz",
+    "ru": "ALI TRAVEL: туры, кулинарные занятия, цены и бронирование в Узбекистане. Нажмите Start и выберите язык.\n\n🌐 Сайт: alitravel.uz",
 }
-SHORT = {"": "ALI TRAVEL tours and bookings", "uz": "ALI TRAVEL turlar va bronlar", "ru": "ALI TRAVEL: туры и бронирование"}
+SHORT = {"": "💙 ALI TRAVEL: tours and bookings in Uzbekistan · 🌐 alitravel.uz", "uz": "💙 ALI TRAVEL: turlar va bronlar · 🌐 alitravel.uz",
+         "ru": "💙 ALI TRAVEL: туры и бронирование · 🌐 alitravel.uz"}
 COMMANDS = {
     "": [("start", "Start / choose language"), ("menu", "Show the menu"), ("language", "Change language"), ("contact", "Contact us")],
     "uz": [("start", "Boshlash / tilni tanlash"), ("menu", "Menyuni koʻrsatish"), ("language", "Tilni oʻzgartirish"), ("contact", "Aloqa")],

@@ -150,7 +150,7 @@ PHRASES = {
     "Private driver between cities.": ("Shaharlar o'rtasida shaxsiy haydovchi.", "Личный водитель между городами.", "Chauffeur privé entre les villes.", "Privater Fahrer zwischen den Städten.", "Conductor privado entre ciudades."),
     "Sedan or SUV": ("Sedan yoki SUV", "Седан или внедорожник", "Berline ou SUV", "Limousine oder SUV", "Sedán o SUV"),
     # ---- Samarkand city tour (new)
-    "Samarkand City Tour": ("Samarqand shahar turi", "Обзорный тур по Самарканду", "Visite de la ville de Samarcande", "Stadtrundfahrt Samarkand", "Tour por la ciudad de Samarcanda"),
+    "2-Day Samarkand City Tour": ("2 kunlik Samarqand shahar turi", "2-дневный обзорный тур по Самарканду", "Visite de Samarcande en 2 jours", "2-tägige Stadtrundfahrt Samarkand", "Tour de 2 días por Samarcanda"),
     "A day through Samarkand's must-see places with a local guide, taxi rides between stops and pickup from the airport.": (
         "Mahalliy gid bilan Samarqandning eng muhim joylari bo'ylab bir kun: bekatlar orasida taksi va aeroportdan kutib olish.",
         "День по главным местам Самарканда с местным гидом, такси между остановками и встречей в аэропорту.",

@@ -12,7 +12,9 @@ Polling refuses to start while a webhook is registered, so a copy on another com
 (pass --force to take it over on purpose).
 """
 import logging
+import socket
 import time
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -22,6 +24,14 @@ from api.telegram_bot import Bot, make_call, webhook_secret, webhook_url
 log = logging.getLogger("telegram_bot")
 ALLOWED_UPDATES = ["message", "callback_query"]
 WEBHOOK_CHECK_SECONDS = 300
+
+
+def current_address(url):
+    """The IPv4 address the webhook's domain points at right now ('' when it cannot be looked up)."""
+    try:
+        return socket.gethostbyname(urlsplit(url).hostname or "")
+    except (OSError, UnicodeError):
+        return ""
 
 
 class Command(BaseCommand):
@@ -55,10 +65,16 @@ class Command(BaseCommand):
         while True:
             try:
                 info = call("getWebhookInfo") or {}
-                if info.get("url") != url:
-                    call("setWebhook", {"url": url, "secret_token": webhook_secret(), "allowed_updates": ALLOWED_UPDATES,
-                                        "max_connections": 10})
-                    log.warning("Telegram webhook set to %s (it was %r)", url, info.get("url"))
+                # Telegram keeps the address it looked up when the webhook was set; after the server's IP changes it would
+                # keep calling the old one, so the webhook is set again (with the new address) whenever the two differ.
+                address = current_address(url)
+                moved = bool(address and info.get("ip_address") and info["ip_address"] != address)
+                if info.get("url") != url or moved:
+                    payload = {"url": url, "secret_token": webhook_secret(), "allowed_updates": ALLOWED_UPDATES, "max_connections": 10}
+                    if address:
+                        payload["ip_address"] = address
+                    call("setWebhook", payload)
+                    log.warning("Telegram webhook set to %s at %s (it was %r at %s)", url, address, info.get("url"), info.get("ip_address"))
                 elif info.get("last_error_message"):
                     log.warning("Telegram reports a webhook problem: %s", info["last_error_message"])
             except Exception:

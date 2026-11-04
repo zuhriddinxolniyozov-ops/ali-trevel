@@ -85,7 +85,7 @@ export default function Gallery({ images = [], alt = '', className = 'aspect-[4/
           onClickCapture={stopClickAfterDrag} role="group" aria-roledescription="carousel" aria-label={alt}
           className={`flex w-full overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${dragging ? 'cursor-grabbing snap-none !scroll-auto' : `${single ? '' : 'cursor-grab'} snap-x snap-mandatory`} ${className}`}>
           {list.map((src, i) => {
-            const image = <Photo src={src} alt={`${alt} ${i + 1}/${list.length}`} draggable={false} loading={i === 0 ? 'eager' : 'lazy'} className="h-full w-full select-none object-cover" />
+            const image = <Photo src={src} sizes="(max-width: 1023px) 100vw, 62vw" alt={`${alt} ${i + 1}/${list.length}`} draggable={false} loading={i === 0 ? 'eager' : 'lazy'} className="h-full w-full select-none object-cover" />
             return (
               <div key={`${src}-${i}`} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${list.length}`} className="h-full w-full shrink-0 snap-center">
                 {to ? <Link to={to} draggable={false} tabIndex={-1} className="block h-full w-full">{image}</Link> : image}
@@ -109,7 +109,7 @@ export default function Gallery({ images = [], alt = '', className = 'aspect-[4/
           {list.map((src, i) => (
             <button key={`${src}-${i}`} type="button" role="tab" aria-selected={i === index} aria-label={`${i + 1} / ${list.length}`} onClick={() => go(i)}
               className={`h-16 w-24 shrink-0 overflow-hidden rounded-sm border-2 transition ${i === index ? 'border-navy' : 'border-transparent opacity-70 hover:opacity-100'}`}>
-              <Photo src={src} alt="" className="h-full w-full object-cover" />
+              <Photo src={src} sizes="160px" alt="" className="h-full w-full object-cover" />
             </button>
           ))}
         </div>

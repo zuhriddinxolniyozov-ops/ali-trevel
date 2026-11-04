@@ -1687,3 +1687,39 @@ class TelegramWebhookTests(APITestCase):
         hook = [p for m, p in calls if m == "setWebhook"][0]
         self.assertEqual(hook["url"], "https://alitravel.example/api/telegram/webhook/")
         self.assertEqual(hook["secret_token"], webhook_secret())
+
+    def test_watch_site_warns_only_when_something_is_wrong(self):
+        """The daily check is silent while the certificate is fresh and the domain points here, and tells the team otherwise."""
+        from unittest import mock
+        from django.core.management import call_command
+        from django.test import override_settings
+        cmd = "api.management.commands.watch_site"
+        cases = [(80, "52.65.166.20", 0), (10, "52.65.166.20", 1), (80, "3.107.3.123", 1), (None, "52.65.166.20", 1)]
+        for days, pointed, alerts in cases:
+            with override_settings(SITE_URL="https://alitravel.uz"), \
+                 mock.patch(f"{cmd}.certificate_days_left", return_value=days), \
+                 mock.patch(f"{cmd}.own_address", return_value="52.65.166.20"), \
+                 mock.patch(f"{cmd}.socket.gethostbyname", return_value=pointed), \
+                 mock.patch(f"{cmd}.notifications._tell_the_team") as tell:
+                call_command("watch_site", stdout=__import__("io").StringIO())
+            self.assertEqual(tell.call_count, alerts, (days, pointed))
+            if alerts:
+                self.assertIn("ALI TRAVEL", tell.call_args.kwargs["telegram_html"])
+
+    def test_webhook_follows_the_server_to_its_new_address(self):
+        """After the server's IP changes, Telegram still calls the old one until the webhook is set again with the new address."""
+        from unittest import mock
+        from django.core.management import call_command
+        url = "https://alitravel.example/api/telegram/webhook/"
+        for telegram_ip, expect_reset in (("3.107.3.123", True), ("52.65.166.20", False)):
+            calls = []
+            def fake(method, payload=None, timeout=20):
+                calls.append((method, payload))
+                return {"getMe": {"username": "alitraveluzbot"}, "getWebhookInfo": {"url": url, "ip_address": telegram_ip}}.get(method, True)
+            with mock.patch("api.management.commands.telegram_bot.make_call", return_value=fake), \
+                 mock.patch("api.management.commands.telegram_bot.current_address", return_value="52.65.166.20"):
+                call_command("telegram_bot", "--webhook", "--once", stdout=__import__("io").StringIO())
+            hooks = [p for m, p in calls if m == "setWebhook"]
+            self.assertEqual(bool(hooks), expect_reset, telegram_ip)
+            if hooks:
+                self.assertEqual(hooks[0]["ip_address"], "52.65.166.20")

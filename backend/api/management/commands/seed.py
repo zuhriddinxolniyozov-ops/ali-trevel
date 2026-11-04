@@ -81,7 +81,7 @@ CITY_TOUR_SLUG = "samarkand-city-tour"
 LANGUAGES = ["English", "Russian", "Uzbek"]
 CITY_FEES = {name: fee for _, name, fee, *_ in PLACES}
 CITY_TOUR = dict(
-    title="Samarkand City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture",
+    title="2-Day Samarkand City Tour", destination_slug="samarkand", destination_name="Samarkand", category="Culture",
     duration_label="2 days", group_type="Small group", tour_type="car", max_travelers=21, languages=LANGUAGES,
     transport_included=True, tickets_included=False, pickup_included=True, guide="ALI TRAVEL team",
     meeting_point="Samarkand airport", price_from_usd=209, rating=4.9, review_count=0,

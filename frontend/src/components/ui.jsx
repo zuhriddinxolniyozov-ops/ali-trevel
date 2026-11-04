@@ -22,11 +22,19 @@ export function PriceTag({ amount, percent = 0, className = '', badge = true }) 
 }
 
 /** A photo, or a soft placeholder when the record has none yet. */
-export function Photo({ src, alt = '', className = '', ...rest }) {
+// Wikimedia Commons serves any photo at a few standard widths: a phone downloads a smaller copy than a big screen.
+const COMMONS_WIDTHS = [500, 960, 1280]
+function commonsSrcSet(src) {
+  if (!/commons\.wikimedia\.org\/wiki\/Special:FilePath\/.+[?&]width=\d+/.test(src || '')) return undefined
+  return COMMONS_WIDTHS.map((w) => `${src.replace(/([?&]width=)\d+/, `$1${w}`)} ${w}w`).join(', ')
+}
+
+export function Photo({ src, alt = '', className = '', sizes = '(max-width: 639px) 85vw, (max-width: 1023px) 50vw, 34vw', ...rest }) {
   const [failed, setFailed] = useState(false)
   useEffect(() => { setFailed(false) }, [src])
+  const srcSet = commonsSrcSet(src)
   return src && !failed
-    ? <img src={src} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} {...rest} />
+    ? <img src={src} srcSet={srcSet} sizes={srcSet ? sizes : undefined} alt={alt} loading="lazy" decoding="async" className={className} onError={() => setFailed(true)} {...rest} />
     : <div aria-hidden="true" className={`bg-gradient-to-br from-sand to-sand-soft ${className}`} />
 }
 
@@ -78,8 +86,8 @@ export function DestinationCard({ destination: d, delay = 0 }) {
             </div>
           </div>
         </Link>
-        <div className="p-5 lg:p-6">
-          <p className="text-[14.5px] leading-relaxed text-ink">{d.summary}</p>
+        <div className="card-pad p-5 lg:p-6">
+          <p className="hide-in-row text-[14.5px] leading-relaxed text-ink">{d.summary}</p>
           <div className="mt-5 flex items-center justify-between gap-3 border-t border-navy/10 pt-4">
             <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-ink"><Clock className="h-3.5 w-3.5" />{d.suggested_duration}</span>
             <Link to={`/destinations/${d.slug}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('Explore destination')}<ArrowRight className="h-3.5 w-3.5" /></Link>
@@ -104,15 +112,15 @@ export function TourCard({ tour: t, delay = 0 }) {
         </Link>
         <SelectToggle tour={t} />
         </div>
-        <div className="flex flex-1 flex-col p-5">
+        <div className="card-pad flex flex-1 flex-col p-5">
           <div className="flex items-center gap-3 text-[12px] text-ink">
             <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-turquoise-deep" />{t.destination_name}</span>·
             <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{tr(t.duration_label)}</span>
           </div>
           <h3 className="mt-2 font-heading text-[23px] leading-tight text-navy"><Link to={`/tours/${t.slug}`} className="hover:text-turquoise-deep">{t.title}</Link></h3>
-          <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{t.summary}</p>
+          <p className="hide-in-row mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{t.summary}</p>
           {Number(t.price_from_usd) > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-navy">
+            <div className="hide-in-row mt-3 flex flex-wrap gap-1.5 text-[11px] text-navy">
               {t.tour_type === 'workshop' && <span className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1"><ChefHat className="h-3 w-3" />{tr('Hands-on experience')}</span>}
               <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CalendarX2 className="h-3 w-3 text-turquoise-deep" />{tr('Free cancellation')}</span>
               {t.pickup_included && <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CarFront className="h-3 w-3 text-turquoise-deep" />{tr('Pickup included')}</span>}

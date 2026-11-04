@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import { discounted, exactMoney, useAuth, useSettings } from '../hooks'
 import { groupPercent } from '../groupPricing'
@@ -87,14 +87,14 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     )
   }
   return (
-    <form onSubmit={submit} noValidate className="rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
+    <form id="book" onSubmit={submit} noValidate className="scroll-mt-24 rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t(isStay ? 'Request a stay' : 'Send a booking request')}</p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink">{t(intro || 'No payment is taken. Our team confirms availability and sends a written confirmation.')}</p>
       <div className="relative mt-4 space-y-3">
         <Honeypot value={f.website} onChange={set('website')} />
         <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
         <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
-        <Field label="Phone / WhatsApp" error={errors.phone}><input type="tel" className="input" placeholder="+998 90 123 45 67" value={f.phone} onChange={set('phone')} /></Field>
+        <Field label="Phone / Telegram" error={errors.phone}><input type="tel" className="input" placeholder="+998 90 123 45 67" value={f.phone} onChange={set('phone')} /></Field>
         {isStay ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -142,7 +142,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
             {hotel && (
               <div className="mt-3 space-y-3">
                 <div className="flex gap-3 rounded-sm bg-sand-soft/60 p-2">
-                  <Photo src={hotel.image_url} alt={hotel.name} className="h-14 w-20 shrink-0 rounded object-cover" />
+                  <Photo src={hotel.image_url} sizes="80px" alt={hotel.name} className="h-14 w-20 shrink-0 rounded object-cover" />
                   <p className="text-[12.5px] leading-snug text-ink"><span className="block font-medium text-navy">{hotel.name}</span>{hotel.summary}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -166,5 +166,39 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
       {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{message}</p>}
       <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending') : t('Send request')}</button>
     </form>
+  )
+}
+
+/**
+ * Phones: the booking form sits far down a long page, so a bar at the bottom of the screen shows the price and a button that
+ * scrolls to the form. The bar steps aside while the form itself is on screen.
+ */
+export function MobileBookBar({ price, unit }) {
+  const t = useT()
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    const form = document.getElementById('book')
+    document.body.classList.add('has-book-bar')
+    let watch
+    if (form && 'IntersectionObserver' in window) {
+      watch = new IntersectionObserver(([e]) => setHidden(e.isIntersecting), { rootMargin: '0px 0px -20% 0px' })
+      watch.observe(form)
+    }
+    return () => { document.body.classList.remove('has-book-bar'); watch?.disconnect() }
+  }, [])
+  const go = () => {
+    const form = document.getElementById('book')
+    if (!form) return
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setTimeout(() => form.querySelector('input:not([type=hidden]):not([tabindex="-1"])')?.focus({ preventScroll: true }), 600)
+  }
+  return (
+    <div className={`fixed inset-x-0 bottom-0 z-40 border-t border-navy/10 bg-ivory/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_-24px_rgba(0,35,102,0.6)] backdrop-blur transition-transform duration-300 lg:hidden print:hidden ${hidden ? 'translate-y-full' : ''}`}>
+      <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+        {price ? <p className="min-w-0 text-navy"><span className="block font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('From')}</span>
+          <span className="text-[20px] font-medium">{price}</span>{unit && <span className="ml-1 text-[13px] text-ink">/ {t(unit)}</span>}</p> : <span />}
+        <button type="button" onClick={go} className="btn-primary h-12 shrink-0 px-7 text-[14px]">{t('Book now')}</button>
+      </div>
+    </div>
   )
 }

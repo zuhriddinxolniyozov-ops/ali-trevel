@@ -95,7 +95,7 @@ function SelectionDialog({ onClose }) {
           <ul className="mt-5 divide-y divide-navy/10 rounded-sm border border-navy/10 bg-white">
             {items.map((x) => (
               <li key={x.slug} className="flex items-center gap-3 p-3">
-                <Photo src={x.image_url} alt="" className="h-14 w-20 shrink-0 rounded object-cover" />
+                <Photo src={x.image_url} sizes="80px" alt="" className="h-14 w-20 shrink-0 rounded object-cover" />
                 <div className="min-w-0 flex-1"><p className="truncate text-[14px] font-medium text-navy">{x.title}</p>
                   <p className="text-[12.5px] text-ink">{t(x.duration_label)} · {t('from')} <span className="font-mono">{exactMoney(discounted(x.price_from_usd, x.effective_discount))}</span> / {t('person')}</p></div>
                 <button onClick={() => remove(x.slug)} aria-label={t('Remove')} className="grid h-8 w-8 place-items-center rounded-full text-destructive hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>

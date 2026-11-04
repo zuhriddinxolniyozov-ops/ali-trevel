@@ -372,10 +372,14 @@ shows up in the list), plus the cities of the map and "Cities you added" (moved 
 unpacks the project, loads your database and photos the first time, starts the website and the Telegram bot as services and, when you give a domain, turns on HTTPS.
 
 ```powershell
-.\deploy\aws_deploy.ps1 -ServerHost <public IP of the instance>                       # http://<IP>
-.\deploy\aws_deploy.ps1 -ServerHost <IP> -Domain alitravel.uz -Email you@example.com  # https://alitravel.uz (DNS A records must point to the IP)
-.\deploy\aws_deploy.ps1 -ServerHost <IP> -DryRun                                      # only packs, shows the plan, does not connect
+.\deploy\aws_deploy.ps1                                                              # update the live server (52.65.166.20, https://alitravel.uz)
+.\deploy\aws_deploy.ps1 -DryRun                                                      # only packs, shows the plan, does not connect
+.\deploy\aws_deploy.ps1 -ServerHost <IP> -Domain example.uz -Email you@example.com  # another server (DNS A records must point to the IP)
 ```
+
+The live server has the **Elastic IP `52.65.166.20`** (it stays the same when the instance is stopped and started); the domain's
+`@` A record at aHOST points at it (`www` is a CNAME of the domain). If the IP ever changes: point the A record at the new one, and
+the bot's webhook follows on its own within five minutes (`telegram_bot --webhook` sets it again when Telegram still calls the old address).
 
 Before the first run: in the AWS console open the instance's **security group** and allow inbound TCP **22, 80 and 443**; stop the Telegram bot on your own computer (the server runs it now).
 With a domain (https) the server's bot runs as a **webhook**: Telegram sends each message to `https://<domain>/api/telegram/webhook/`

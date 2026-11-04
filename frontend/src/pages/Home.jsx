@@ -18,7 +18,7 @@ const WHY = [
   [Car, 'Comfortable Airport Transfers', 'A driver waiting with your name, flight tracked, luggage handled, and a cold water in the car.'],
   [Palette, 'Authentic Cultural Experiences', 'Plov cooked in a family courtyard, a potter’s wheel in Rishton, an evening of maqom music.'],
   [Wallet, 'Transparent Pricing', 'Clear per-person prices with what is included listed up front. No surprise extras on the road.'],
-  [Headset, 'Friendly Customer Support', 'An English-speaking coordinator reachable on WhatsApp from your first question to your last day.'],
+  [Headset, 'Friendly Customer Support', 'An English-speaking coordinator reachable on Telegram from your first question to your last day.'],
 ]
 const STEPS = [
   ['Explore', 'Browse destinations and experiences, or generate a suggested itinerary in a few clicks.'],
@@ -87,38 +87,44 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="destinations" className="shell py-20 lg:py-28">
+      <section id="destinations" className="shell py-14 sm:py-20 lg:py-28">
+        {/* Phones and tablets: the Silk Road map (shown inside the hero photo on big screens) sits on the same photo above the destinations */}
+        <div className="relative isolate -mx-5 -mt-14 mb-10 overflow-hidden bg-navy sm:mx-0 sm:mt-0 sm:rounded-[14px] xl:hidden">
+          <img src={img(IMAGES.hero)} alt="" aria-hidden="true" loading="lazy" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-navy/85 via-navy/55 to-navy/85" />
+          <div className="px-3 pb-5 pt-6 sm:px-8 sm:py-8"><HeroRoute className="mx-auto max-w-[620px] drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]" /></div>
+        </div>
         <SectionHeading align="between" eyebrow="Destinations" title="Seven regions, one Silk Road" description="From turquoise domes to walled desert towns — start with the places everyone dreams of."
           action={<Link to="/destinations" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All destinations')}<ArrowRight className="h-4 w-4" /></Link>} />
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="swipe-row mt-8 sm:mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {tours.loading ? <Skeleton count={3} /> : packages.map((x, i) => <PackageCard key={x.slug} tour={x} delay={i * 80} />)}
         </div>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="swipe-row mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {dest.loading ? <Skeleton count={3} /> : dest.data.filter((d) => d.featured).map((d, i) => <DestinationCard key={d.slug} destination={d} delay={i * 80} />)}
         </div>
       </section>
 
       <BestValue tours={tours.data} />
 
-      <section className="bg-sand-soft/60 py-20 lg:py-28">
+      <section className="bg-sand-soft/60 py-14 sm:py-20 lg:py-28">
         <div className="shell">
           <SectionHeading align="between" eyebrow="Featured journeys" title="Tours & experiences" description="Sample itineraries built by our local team. Tick “Select” on any tours you like and request them together."
             action={<Link to="/tours" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All tours')}<ArrowRight className="h-4 w-4" /></Link>} />
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="swipe-row mt-8 sm:mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {tours.loading ? <Skeleton count={3} /> : tours.data.filter((x) => !x.parent_slug && Number(x.price_from_usd) > 0 && x.tour_type !== 'workshop').map((x, i) => <TourCard key={x.slug} tour={x} delay={(i % 3) * 80} />)}
           </div>
         </div>
       </section>
 
       {classes.data.length > 0 && (
-        <section className="shell py-20 lg:py-28">
+        <section className="shell py-14 sm:py-20 lg:py-28">
           <SectionHeading align="between" eyebrow="Hands-on experiences" title="Bake it, taste it, take it home" description="Taste Samarkand with your own hands: shape non in a clay tandir, cook plov in a kazan, sit down together at the dastarkhan and carry the rest home."
             action={<Link to="/tours" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All tours')}<ArrowRight className="h-4 w-4" /></Link>} />
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{classes.data.slice(0, 3).map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 80} />)}</div>
+          <div className="swipe-row mt-8 sm:mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{classes.data.slice(0, 3).map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 80} />)}</div>
         </section>
       )}
 
-      <section className="shell py-20 lg:py-28">
+      <section className="shell py-14 sm:py-20 lg:py-28">
         <SectionHeading eyebrow="Why ALI TRAVEL" title="Hospitality, planned with care" align="center" />
         <div className="mt-12 grid gap-px overflow-hidden rounded-[4px] border border-navy/10 bg-navy/10 sm:grid-cols-2 lg:grid-cols-3">
           {WHY.map(([Icon, title, body], i) => (
@@ -128,7 +134,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-sand-soft/60 py-20 lg:py-28">
+      <section className="bg-sand-soft/60 py-14 sm:py-20 lg:py-28">
         <div className="shell">
           <SectionHeading eyebrow="How it works" title="From first idea to wheels down" />
           <ol className="relative mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-5 lg:gap-6">
@@ -140,10 +146,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="shell py-20 lg:py-28">
+      <section className="shell py-14 sm:py-20 lg:py-28">
         <p className="eyebrow">{t('Traveller stories')}</p><h2 className="display-lg mt-3">{t('Hospitality, remembered')}</h2>
         {reviews.data.length > 0 ? (
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">{reviews.data.slice(0, 3).map((r) => <ReviewCard key={r.id} review={r} />)}</div>
+          <div className="swipe-row mt-10 grid gap-6 lg:grid-cols-3">{reviews.data.slice(0, 3).map((r) => <ReviewCard key={r.id} review={r} />)}</div>
         ) : (<>
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
             {TESTIMONIALS.map(([quote, name, country, trip], i) => (

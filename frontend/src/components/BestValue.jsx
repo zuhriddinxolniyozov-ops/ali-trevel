@@ -25,7 +25,7 @@ export default function BestValue({ tours }) {
           </div>
           <p className="max-w-md text-[13px] leading-relaxed text-ink">{t('These places are visited as part of a full tour; they cannot be booked on their own.')}</p>
         </div>
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="swipe-row mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {places.map((p, i) => {
             const parent = byslug[p.parent_slug]
             return (
@@ -36,9 +36,9 @@ export default function BestValue({ tours }) {
                     <Photo src={p.image_url} alt={p.title} className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.05]" />
                     <span className="absolute left-3 top-3 rounded-full bg-gold px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-navy">{t('Entrance ticket')} {money(p.entrance_fee_usd)}</span>
                   </Link>
-                  <div className="flex flex-1 flex-col p-5">
+                  <div className="card-pad flex flex-1 flex-col p-5">
                     <h3 className="font-heading text-[22px] leading-tight text-navy">{p.title}</h3>
-                    <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{p.summary}</p>
+                    <p className="hide-in-row mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{p.summary}</p>
                     <p className="mt-3 flex items-start gap-1.5 text-[12px] text-ink"><Landmark className="mt-0.5 h-3.5 w-3.5 shrink-0 text-turquoise-deep" />{t('Part of')}: <span className="font-medium text-navy">{parent.title}</span></p>
                     <div className="mt-auto flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
                       <div>

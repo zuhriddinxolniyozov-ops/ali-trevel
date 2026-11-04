@@ -68,3 +68,36 @@
 .silk-dot { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
 a:hover .silk-dot, a:focus-visible .silk-dot { transform: scale(1.25); }
 @media (prefers-reduced-motion: reduce) { .silk-ping { animation: none; opacity: 0; } }
+
+/* Phones: iPhone zooms the page into any form field whose text is smaller than 16px and does not zoom back out.
+   Fields get 16px text on small screens (touch devices only), so tapping a field never jumps the page. */
+@media (max-width: 767px) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea { font-size: 16px !important; }
+}
+/* no blue flash on every tap, and no sideways wobble from a stray wide element */
+html { -webkit-tap-highlight-color: transparent; }
+body { overflow-x: clip; }
+
+/* the booking bar at the bottom of tour and hotel pages on phones: the chat button and the page end sit above it */
+@media (max-width: 1023px) {
+  body.has-book-bar { padding-bottom: 5rem; }
+  body.has-book-bar .chat-button { bottom: 5.75rem; }
+}
+
+/* Phones: rows of cards slide sideways (like GetYourGuide): one card and the edge of the next on screen, a swipe moves to the
+   next one. On tablets and computers the same rows stay ordinary grids. Cards inside a row drop their long texts on phones. */
+@media (max-width: 639px) {
+  .swipe-row {
+    display: flex !important; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+    margin-inline: -1.25rem; padding-inline: 1.25rem; scroll-padding-inline: 1.25rem; padding-bottom: 6px; scrollbar-width: none;
+  }
+  .swipe-row::-webkit-scrollbar { display: none; }
+  .swipe-row > * { flex: 0 0 80%; min-width: 0; scroll-snap-align: start; }
+  .swipe-row .hide-in-row { display: none !important; }
+  .swipe-row article { border-radius: 14px; }
+  .swipe-row h3 { font-size: 19px !important; line-height: 1.2; }
+  .swipe-row .card-pad { padding: 14px 14px 16px !important; }
+  .swipe-row > * { height: auto !important; }               /* every card in a row as tall as the tallest */
+  .swipe-row > * > article { height: 100%; }
+  .swipe-row .card-pad > .hide-in-row:first-child + div { margin-top: 0; border-top: 0; padding-top: 0; }
+}

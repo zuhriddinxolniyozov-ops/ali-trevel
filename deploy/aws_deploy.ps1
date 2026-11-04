@@ -10,20 +10,22 @@
   Run it again later to update the server: the live database and the server's SECRET_KEY are never overwritten (unless you ask).
 
   Examples (PowerShell, from the project folder):
-    .\deploy\aws_deploy.ps1 -ServerHost 3.120.45.67
-    .\deploy\aws_deploy.ps1 -ServerHost 3.120.45.67 -Domain alitravel.uz -Email alitravel004@gmail.com
-    .\deploy\aws_deploy.ps1 -ServerHost 3.120.45.67 -DryRun        (packs everything but does not connect)
+    .\deploy\aws_deploy.ps1                 (updates the live ALI TRAVEL server: 52.65.166.20, alitravel.uz with https)
+    .\deploy\aws_deploy.ps1 -DryRun         (packs everything but does not connect)
+    .\deploy\aws_deploy.ps1 -ServerHost 3.120.45.67 -Domain example.uz -Email you@example.com   (another server)
+  The defaults are the live server's Elastic IP (it stays the same when the server restarts) and its domain, so a plain run
+  keeps https: without a domain the server's web settings would go back to plain http.
 
   The AWS security group must allow inbound TCP 22 (ssh), 80 (http) and 443 (https).
   The private key is only handed to ssh; this script never prints or copies it.
 #>
 [CmdletBinding()]
 param(
-  [string]$ServerHost,
+  [string]$ServerHost = '52.65.166.20',
   [string]$User,
   [string]$Key = (Join-Path $HOME '.ssh\zuhriddin.pem'),
-  [string]$Domain = '',
-  [string]$Email = '',
+  [string]$Domain = 'alitravel.uz',
+  [string]$Email = 'alitravel004@gmail.com',
   [switch]$NoData,        # do not send the local database and photos; the server loads the sample data instead
   [switch]$ReplaceData,   # overwrite the server's database with the local one (a backup is kept on the server)
   [switch]$SkipBuild,     # do not run npm run build

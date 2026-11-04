@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Check, Globe, Mail, Menu, Phone, Send, Tag, X } from 'lucide-react'
 import { useAuth, useFetch, useSettings } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
-import { WhatsAppButton } from './Trust'
+import { ChatButton } from './Trust'
 import { SelectionProvider } from './Selection'
 import Analytics from './Analytics'
 import { Socials } from './Socials'
+import LogoMark from './LogoMark'
 
 export { Socials }
 
@@ -17,9 +19,7 @@ const NAV = [
 export function Logo({ light = false }) {
   return (
     <Link to="/" className="group flex shrink-0 items-center gap-3 whitespace-nowrap" aria-label="ALI TRAVEL">
-      <span className={`grid h-10 w-10 place-items-center rounded-[10px] transition-transform duration-500 group-hover:rotate-[8deg] ${light ? 'bg-ivory/10 ring-1 ring-ivory/25' : 'bg-navy'}`}>
-        <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true"><path d="M16 3l3.6 7.4L28 11.6l-5.8 5.6 1.4 8L16 21.5l-7.6 3.7 1.4-8L4 11.6l8.4-1.2z" fill="#c5a059" /></svg>
-      </span>
+      <LogoMark className={`h-10 w-10 shrink-0 shadow-[0_6px_16px_-4px_rgba(0,35,102,0.45)] transition-transform duration-500 group-hover:rotate-[6deg] ${light ? 'ring-1 ring-ivory/25' : ''}`} />
       <span className="flex flex-col leading-none">
         <span className={`font-heading text-[22px] tracking-[0.01em] ${light ? 'text-ivory' : 'text-navy'}`}>ALI TRAVEL</span>
         <span className={`mt-1 font-mono text-[9px] uppercase tracking-[0.28em] ${light ? 'text-ivory/70' : 'text-ink'}`}>Uzbekistan</span>
@@ -108,6 +108,12 @@ function Header() {
   const { user, isAuthenticated, logout } = useAuth()
   const { settings } = useSettings()
   useEffect(() => { setOpen(false) }, [pathname])
+  useEffect(() => {  // while the phone menu is open the page behind it does not scroll, and Esc closes it
+    if (!open) return undefined
+    const close = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.body.style.overflow = 'hidden'; window.addEventListener('keydown', close)
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', close) }
+  }, [open])
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 12)
     on(); window.addEventListener('scroll', on, { passive: true })
@@ -148,8 +154,8 @@ function Header() {
         </div>
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 bg-navy/40" onClick={() => setOpen(false)}>
+      {open && createPortal(
+        <div className="fixed inset-0 z-[60] bg-navy/40" onClick={() => setOpen(false)}>
           <aside className="ml-auto flex h-full w-[88%] max-w-sm flex-col bg-ivory" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-navy/10 px-6 py-6"><Logo /><button aria-label={t('Close menu')} onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
             <nav className="flex-1 overflow-y-auto px-6 py-6" aria-label={t('Mobile navigation')}>
@@ -179,7 +185,8 @@ function Header() {
               ) : <Link to="/login" className="btn-outline w-full">{t('Sign In')}</Link>}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
     </header>
   )
@@ -245,7 +252,7 @@ export default function Layout() {
       <Header />
       <main id="main-content" className="flex-1"><Outlet /></main>
       <Footer />
-      <WhatsAppButton />
+      <ChatButton />
       <Analytics />
     </div>
     </SelectionProvider>

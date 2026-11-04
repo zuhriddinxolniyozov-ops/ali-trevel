@@ -16,7 +16,7 @@ const absolute = (url) => (url && url.startsWith('/') ? `${window.location.origi
  * Sets the page title, description, social-sharing tags and (optionally) structured data for the current page, and puts the
  * defaults back when the visitor leaves. Search engines and link previews read these.
  */
-export default function Seo({ title, description, image, jsonLd }) {
+export default function Seo({ title, description, image, jsonLd, noindex = false }) {
   const data = jsonLd ? JSON.stringify(jsonLd) : ''
   useEffect(() => {
     const fullTitle = title ? `${title} — ALI TRAVEL` : DEFAULT_TITLE
@@ -29,6 +29,7 @@ export default function Seo({ title, description, image, jsonLd }) {
     setMeta('property', 'og:url', window.location.href.split('#')[0])
     setMeta('property', 'og:image', absolute(image))
     setMeta('name', 'twitter:card', image ? 'summary_large_image' : 'summary')
+    setMeta('name', 'robots', noindex ? 'noindex' : '')   // e.g. the "page not found" page
     let canonical = document.head.querySelector('link[rel="canonical"]')
     if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical) }
     canonical.href = window.location.origin + window.location.pathname
@@ -41,8 +42,9 @@ export default function Seo({ title, description, image, jsonLd }) {
       document.title = DEFAULT_TITLE
       setMeta('name', 'description', DEFAULT_DESCRIPTION)
       document.getElementById('seo-jsonld')?.remove()
+      setMeta('name', 'robots', '')
     }
-  }, [title, description, image, data])
+  }, [title, description, image, data, noindex])
   return null
 }
 

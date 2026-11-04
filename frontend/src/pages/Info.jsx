@@ -7,7 +7,7 @@ import Seo from '../components/Seo'
 import { ExtraContacts, Phones, Socials } from '../components/Layout'
 import { IMAGES } from '../data'
 
-const ABOUT_POINTS = ['Licensed local guides', 'Family-run guesthouses we know personally', 'Written confirmation before you pay anything', 'English-speaking coordinator on WhatsApp']
+const ABOUT_POINTS = ['Licensed local guides', 'Family-run guesthouses we know personally', 'Written confirmation before you pay anything', 'English-speaking coordinator on Telegram']
 
 export function About() {
   const t = useT()
@@ -17,7 +17,7 @@ export function About() {
       <div className="shell grid gap-12 py-16 lg:grid-cols-2 lg:py-24">
         <div className="space-y-5 text-[17px] leading-relaxed text-ink">
           <p>{t('We are guides, drivers and hosts from Samarkand, Bukhara, Khiva and Tashkent. Every route we sell is one we have walked or driven ourselves.')}</p>
-          <p>{t('Our approach is simple: clear prices, honest advice about the seasons, and a person you can message on WhatsApp from your first question to your last day.')}</p>
+          <p>{t('Our approach is simple: clear prices, honest advice about the seasons, and a person you can message on Telegram from your first question to your last day.')}</p>
         </div>
         <ul className="space-y-4">{ABOUT_POINTS.map((x) => (
           <li key={x} className="rounded-sm border border-navy/10 bg-card p-5 font-heading text-[22px]">{t(x)}</li>))}</ul>

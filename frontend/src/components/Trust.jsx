@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BadgeCheck, CalendarX2, ChevronDown, MessageCircle, ShieldCheck, Star, Users, Wallet } from 'lucide-react'
+import { BadgeCheck, CalendarX2, ChevronDown, ShieldCheck, Star, Users, Wallet } from 'lucide-react'
 import { api } from '../api'
 import { useFetch, useSettings } from '../hooks'
 import { useT } from '../i18n'
@@ -135,16 +135,16 @@ export function TourReviews({ tour }) {
   )
 }
 
-/* A round chat button on every page: the number comes from Contact & settings. */
-export function WhatsAppButton() {
+/* A round Telegram button on every page: it opens the company's Telegram (the link in Contact & settings). */
+export function ChatButton() {
   const t = useT()
   const { settings } = useSettings()
-  const digits = String(settings.phone_primary || '').replace(/\D/g, '')
-  if (!digits) return null
+  const url = String(settings.telegram_url || '')
+  if (!url.startsWith('https://')) return null
   return (
-    <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener noreferrer" aria-label={t('Chat with us on WhatsApp')} title={t('Chat with us on WhatsApp')}
-      className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 print:hidden">
-      <MessageCircle className="h-7 w-7" />
+    <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('Chat with us on Telegram')} title={t('Chat with us on Telegram')}
+      className="chat-button fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-[#229ED9] text-white shadow-lg shadow-[#229ED9]/30 transition-transform hover:scale-105 print:hidden">
+      <svg viewBox="0 0 24 24" className="-ml-0.5 h-7 w-7" fill="currentColor" aria-hidden="true"><path d="M21.6 3.3 2.9 10.5c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.1.9.8.9.5 0 .7-.2 1-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5zM8.3 13.3l10.4-6.6c.5-.3.9-.1.6.2l-8.9 8-.3 3.8z" /></svg>
     </a>
   )
 }

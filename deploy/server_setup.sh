@@ -150,6 +150,13 @@ if [ -n "$DOMAIN" ] && [ -d "/etc/letsencrypt/live/$DOMAIN" ] && grep -qE '^TELE
   echo "Telegram bot: answered by the website (webhook)"
 fi
 
+# Every morning (08:30 Tashkent) the site checks itself and warns the team in Telegram if the https certificate is about to run out
+# or the domain no longer points at this server; it stays silent while all is well.
+cat > /etc/cron.d/alitravel-watch <<CRON
+30 3 * * * www-data cd $APP/backend && $APP/venv/bin/python manage.py watch_site >> /tmp/alitravel-watch.log 2>&1
+CRON
+chmod 644 /etc/cron.d/alitravel-watch
+
 say "Checking"
 sleep 3
 curl -fsS -o /dev/null -w "API   : %{http_code}\n" http://127.0.0.1:8000/api/site-content/ -H 'Host: localhost' || warn "the API did not answer: see  journalctl -u alitravel -n 50"

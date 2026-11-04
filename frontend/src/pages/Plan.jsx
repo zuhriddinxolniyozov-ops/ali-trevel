@@ -61,7 +61,7 @@ function SendItinerary({ plan }) {
     <form onSubmit={submit} noValidate className="mt-6 rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t('Send to our team')}</p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink">{t('This saves your draft as a request so a person can reply. No payment is taken.')}</p>
-      <div className="mt-4 space-y-3">{field('full_name', 'Full name')}{field('email', 'Email', 'email')}{field('phone', 'Phone / WhatsApp', 'tel', '+998 90 123 45 67')}</div>
+      <div className="mt-4 space-y-3">{field('full_name', 'Full name')}{field('email', 'Email', 'email')}{field('phone', 'Phone / Telegram', 'tel', '+998 90 123 45 67')}</div>
       {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{message}</p>}
       <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending your itinerary') : t('Send this itinerary to our team')}</button>
     </form>
@@ -131,7 +131,7 @@ export default function Plan() {
       <div className="max-w-2xl animate-rise-in">
         <p className="eyebrow">{t('Custom trip builder')}</p>
         <h1 className="display-lg mt-3 text-navy">{t('Your Uzbekistan, Your Way')}</h1>
-        <p className="mt-4 text-[17px] leading-relaxed text-ink">{t('Tell us your cities, dates and interests. We will sketch the outline, then refine it together over email or WhatsApp.')}</p>
+        <p className="mt-4 text-[17px] leading-relaxed text-ink">{t('Tell us your cities, dates and interests. We will sketch the outline, then refine it together over email or Telegram.')}</p>
       </div>
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">

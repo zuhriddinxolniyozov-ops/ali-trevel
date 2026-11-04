@@ -4,6 +4,7 @@ import { BadgePercent, Bell, MapPinned, Building2, CalendarDays, Calculator, Coi
 import { api } from '../api'
 import { useAuth } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
+import LogoMark from '../components/LogoMark'
 
 const NAV = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutGrid },
@@ -50,10 +51,12 @@ function SectionSearch() {
 function AdminLanguage() {
   const { lang, setLang, t } = useI18n()
   return (
-    <label className="relative flex h-11 items-center gap-1.5 rounded-full border border-navy/10 bg-white pl-3.5 pr-2 text-[13px] hover:bg-sand-soft">
+    // the button shows only the short code (UZ, RU…); the invisible select on top opens the full list, so it fits a phone header
+    <label className="relative flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-navy/10 bg-white px-3 text-[13px] font-medium hover:bg-sand-soft">
       <Globe className="h-4 w-4 text-ink" aria-hidden="true" />
-      <span className="sr-only">{t('Select language')}</span>
-      <select value={lang} onChange={(e) => setLang(e.target.value)} className="w-[3.6rem] cursor-pointer appearance-none bg-transparent py-2 pr-4 uppercase outline-none sm:w-auto" aria-label={t('Select language')}>
+      <span aria-hidden="true">{lang.toUpperCase()}</span>
+      <ChevronDown className="h-3.5 w-3.5 text-ink" aria-hidden="true" />
+      <select value={lang} onChange={(e) => setLang(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label={t('Select language')}>
         {LANGS.map((l) => <option key={l.code} value={l.code}>{l.code.toUpperCase()} — {l.label}</option>)}
       </select>
     </label>
@@ -86,9 +89,7 @@ export default function AdminLayout() {
     <aside className="flex h-full w-[275px] shrink-0 flex-col bg-navy text-ivory">
       <div className="px-7 pb-6 pt-7">
         <Link to="/admin" className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-[10px] bg-ivory/10 ring-1 ring-ivory/25">
-            <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true"><path d="M16 3l3.6 7.4L28 11.6l-5.8 5.6 1.4 8L16 21.5l-7.6 3.7 1.4-8L4 11.6l8.4-1.2z" fill="#c5a059" /></svg>
-          </span>
+          <LogoMark className="h-11 w-11 shrink-0" />
           <span className="flex flex-col leading-none">
             <span className="font-heading text-[24px]">ALI TRAVEL</span>
             <span className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.28em] text-ivory/70">Uzbekistan</span>
@@ -124,7 +125,7 @@ export default function AdminLayout() {
         <header className="flex h-[66px] shrink-0 items-center justify-between gap-2 border-b border-navy/10 bg-ivory px-3 sm:gap-4 sm:px-5 lg:px-8">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button className="rounded p-1 lg:hidden" aria-label={t('Open sections')} onClick={() => setMobileNav(true)}><LayoutGrid className="h-5 w-5" /></button>
-            <div className="min-w-0"><p className="truncate font-mono text-[10px] uppercase tracking-[0.24em] text-ink">{t('ALI TRAVEL Admin')}</p><h1 className="truncate font-heading text-[22px] leading-none sm:text-[26px]">{t(current.label)}</h1></div>
+            <div className="min-w-0"><p className="hidden truncate font-mono text-[10px] uppercase tracking-[0.24em] text-ink sm:block">{t('ALI TRAVEL Admin')}</p><h1 className="truncate font-heading text-[20px] leading-tight sm:text-[26px] sm:leading-none">{t(current.label)}</h1></div>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <SectionSearch />

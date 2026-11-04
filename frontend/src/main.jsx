@@ -6,6 +6,7 @@ import { AuthProvider } from './hooks'
 import { I18nProvider } from './i18n'
 import { EditProvider } from './edit/Provider'
 import Layout from './components/Layout'
+import NotFound from './pages/NotFound'
 import Home from './pages/Home'
 import { DestinationDetail, Destinations, Food, HotelDetail, Hotels, TourDetail, Tours, Transport } from './pages/Catalog'
 import { About, Contact } from './pages/Info'
@@ -13,7 +14,6 @@ import Legal from './pages/Legal'
 import Plan from './pages/Plan'
 import { Account, Login, Register, RequireAuth } from './pages/Auth'
 import { PartnerDashboard, PartnerRegister, PartnersHome } from './pages/Partners'
-import { EmptyState } from './components/ui'
 import AdminLayout from './admin/AdminLayout'
 import { Bookings, Customers, Enquiries, Overview, Partners, Settings } from './admin/Pages'
 import { AdminListings, AdminTours } from './admin/Catalogs'
@@ -75,7 +75,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="/partners" element={<PartnersHome />} />
               <Route path="/partners/register" element={<PartnerRegister />} />
               <Route path="/partners/dashboard" element={<RequireAuth><PartnerDashboard /></RequireAuth>} />
-              <Route path="*" element={<div className="shell py-24"><EmptyState title="Page not found" /></div>} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
           </EditProvider>

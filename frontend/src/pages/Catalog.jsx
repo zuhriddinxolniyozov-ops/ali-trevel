@@ -7,7 +7,7 @@ import { usesGroupPricing } from '../groupPricing'
 import { useT } from '../i18n'
 import { PACKAGES } from '../components/PackageCard'
 import PlaceMap, { PinLink, located, routeUrl } from '../components/PlaceMap'
-import BookingForm from '../components/BookingForm'
+import BookingForm, { MobileBookBar } from '../components/BookingForm'
 import Gallery from '../components/Gallery'
 import DayPlan, { StoryBlock, parseStop, planText } from '../components/DayPlan'
 import { DestinationCard, EmptyState, PageHero, Photo, PriceTag, Skeleton, TourCard } from '../components/ui'
@@ -240,6 +240,7 @@ export function TourDetail() {
           <BookingForm serviceType="tour" serviceSlug={tour.slug} serviceTitle={tour.title} estimatedTotal={priceless ? 0 : discounted(tour.price_from_usd, tour.effective_discount)}
             groupPriced={usesGroupPricing(tour)} stayIncluded={(tour.itinerary?.length || 0) >= 2} hotels={priceless ? [] : hotels.data} defaultNights={Math.max(1, tour.itinerary?.length || 1)}
             extra={tour.itinerary?.length ? { details_summary: planText(tour) } : {}} onSubmitted={setBooked} />
+          {!booked && <MobileBookBar price={priceless ? null : money(discounted(tour.price_from_usd, tour.effective_discount))} unit="person" />}
           {!priceless && <TrustPanel tour={tour} />}
         </aside>
       </div>
@@ -316,7 +317,8 @@ export function HotelDetail() {
         <aside className="lg:sticky lg:top-28 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1 side-scroll">
           <p className="text-[28px] font-medium"><PriceTag amount={h.price_from_usd} percent={h.effective_discount} /><span className="ml-1 text-[14px] text-ink">/ {t(nightUnit(h))}</span></p>
           <p className="mb-4 mt-1 text-[12.5px] leading-snug text-ink/80">{t('Indicative “from” price based on public booking listings. Our team confirms the exact rate and availability for your dates.')}</p>
-          <BookingForm serviceType="hotel" serviceSlug={h.slug} serviceTitle={h.name} estimatedTotal={discounted(h.price_from_usd, h.effective_discount)} perGuest={false} mode="hotel" unit={h.price_basis} intro="Tell us your dates and rooms. No payment is taken; our team confirms the stay." /></aside>
+          <BookingForm serviceType="hotel" serviceSlug={h.slug} serviceTitle={h.name} estimatedTotal={discounted(h.price_from_usd, h.effective_discount)} perGuest={false} mode="hotel" unit={h.price_basis} intro="Tell us your dates and rooms. No payment is taken; our team confirms the stay." />
+          <MobileBookBar price={money(discounted(h.price_from_usd, h.effective_discount))} unit={nightUnit(h)} /></aside>
       </div>
     </div>
   )
