@@ -112,7 +112,10 @@ Step 'Packing the project'
 $package = Join-Path $Work 'package.tgz'
 $exclude = @('--exclude=__pycache__', '--exclude=*.pyc', '--exclude=backend/.env', '--exclude=backend/venv', '--exclude=backend/backups', '--exclude=backend/staticfiles', '--exclude=backend/*.log')
 if ($NoData) { $exclude += '--exclude=backend/db.sqlite3'; $exclude += '--exclude=backend/media' }
-& tar -czf $package -C $Root @exclude backend frontend/dist deploy 2>&1 | ForEach-Object { "$_" } | Out-Null
+# Windows' own tar understands C:\ paths; Git's GNU tar (often first on PATH) reads "C:" as a remote host
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+if (-not (Test-Path $tar)) { $tar = 'tar' }
+& $tar -czf $package -C $Root @exclude backend frontend/dist deploy 2>&1 | ForEach-Object { "$_" } | Out-Null
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $package)) { Fail 'Packing failed.' }
 $serverScript = Join-Path $Work 'server_setup.sh'
 [IO.File]::WriteAllText($serverScript, ((Get-Content (Join-Path $PSScriptRoot 'server_setup.sh') -Raw) -replace "`r`n", "`n"), (New-Object Text.UTF8Encoding($false)))
@@ -158,7 +161,8 @@ if ($run.Code -ne 0) { Fail "The setup on the server stopped with an error (code
 # ---------------------------------------------------------------- 6. check from here
 Step 'Checking the site from this computer'
 try {
-  $answer = Invoke-WebRequest -UseBasicParsing -TimeoutSec 20 -Uri "http://$ServerHost/api/site-content/"
+  # with a domain, nginx answers only to that name (and redirects to https)
+  $answer = Invoke-WebRequest -UseBasicParsing -TimeoutSec 20 -Uri "${scheme}://$address/api/site-content/"
   Write-Host "The API answered: HTTP $($answer.StatusCode)" -ForegroundColor Green
 } catch {
   Warn "The server did not answer from outside. Open the AWS security group of the instance and allow inbound TCP 80 and 443 (and 22) from anywhere."
