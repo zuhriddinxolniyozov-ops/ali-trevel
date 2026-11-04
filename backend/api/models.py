@@ -53,6 +53,11 @@ def default_group_tiers():
             {"min": 4, "percent": 150}, {"min": 2, "percent": 180}, {"min": 1, "percent": 220}]
 
 
+def default_map_cities():
+    """The cities marked green on the home page's Silk Road map. Each leads to the tours of that city, or to the tour named in `target`."""
+    return {"samarkand": {"green": True, "target": ""}, "bukhara": {"green": True, "target": ""}, "shahrisabz": {"green": True, "target": ""}}
+
+
 def default_cost_rates():
     """What a tour costs the company, in US dollars. Used to add the costs of every confirmed tour automatically (see accounting.py)."""
     return {"guide_per_day": 30, "car_per_day": 60, "car_seats": 4, "hotel_per_room_night": 25, "meals_per_person_day": 0,
@@ -78,6 +83,7 @@ class SiteContent(models.Model):
     analytics_id = models.CharField(max_length=40, blank=True)  # Google Analytics 4 measurement id such as G-XXXXXXXXXX
     extra_contacts = models.JSONField(default=list, blank=True)  # more lines for the footer and contact page: [{"label", "value", "url"}]
     cost_rates = models.JSONField(default=default_cost_rates, blank=True)  # see default_cost_rates
+    map_cities = models.JSONField(default=default_map_cities, blank=True)  # {city key: {"green": bool, "target": "" or "/tours/<slug>"}} for the home page map
 
 
 class Destination(Catalogued):

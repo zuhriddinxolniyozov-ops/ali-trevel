@@ -356,3 +356,6 @@ Telegram bot: a tour now has the same information as its page on the website, in
 transport/tickets/pickup, guide, meeting point, included / not included, story), **day-by-day plan** (in pages), **places and map** (every stop with its ticket and a Google Maps link,
 and the whole route as one button), **price by group size** (the bigger the group, the cheaper per person) and booking. A single place shows its note, ticket and exact location and leads to its
 full tour. Alerts for the team in Telegram use the Uzbek tour names; the 7- and 11-day packages are priced by group size like the other tours.
+
+**Silk Road map (home page)**: in **Admin -> Contact & settings -> Silk Road map** tick a city to mark it with a green pulsing dot; a click on it opens the tours of that city, or the tour chosen
+next to it. Cities not on the map yet (Qarshi, Navoi, Jizzakh, Kokand, Namangan, Andijan, Urgench) appear once ticked (`frontend/src/mapCities.js`, `SiteContent.map_cities`).

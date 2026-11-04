@@ -6,6 +6,7 @@ import { money, useFetch } from '../hooks'
 import { useT } from '../i18n'
 import { Spinner } from '../components/ui'
 import { StatusPill, cap } from '../pages/Auth'
+import { CITIES } from '../mapCities'
 
 function StatCard({ icon: Icon, value, label, note, to }) {
   const body = (
@@ -240,6 +241,8 @@ const SETTING_FIELDS = [
 export function Settings() {
   const t = useT()
   const { data } = useFetch('/site-content/')
+  const { data: allTours } = useFetch('/tours/?all=1', { list: true })
+  const mapTours = allTours.filter((x) => !x.parent_slug && Number(x.price_from_usd) > 0)
   const [form, setForm] = useState(null)
   const [saved, setSaved] = useState(false)
   const current = form || data
@@ -251,6 +254,26 @@ export function Settings() {
       <div className="grid gap-4 sm:grid-cols-2">
         {SETTING_FIELDS.map(([k, label]) => <label key={k} className="label">{t(label)}<input className="input" value={current[k] || ''} onChange={(e) => { setSaved(false); setForm({ ...current, [k]: e.target.value }) }} /></label>)}
       </div>
+      <fieldset className="mt-8 rounded-sm border border-navy/12 p-4">
+        <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Silk Road map on the home page')}</legend>
+        <p className="text-[13px] text-ink">{t('Tick a city to mark it with a green pulsing dot. A click on it opens the tours of that city, or the tour you choose. A city that is not on the map yet appears once ticked.')}</p>
+        <div className="mt-3 divide-y divide-navy/10 rounded-sm border border-navy/10 bg-white">
+          {CITIES.map(([key, name]) => {
+            const chosen = (current.map_cities || {})[key] || { green: false, target: '' }
+            const change = (patch) => { setSaved(false); setForm({ ...current, map_cities: { ...(current.map_cities || {}), [key]: { ...chosen, ...patch } } }) }
+            return (
+              <div key={key} className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[170px_1fr]">
+                <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={!!chosen.green} onChange={(e) => change({ green: e.target.checked })} />
+                  <span className={`inline-block h-3 w-3 rounded-full ${chosen.green ? 'bg-[#22c55e]' : 'bg-navy/25'}`} aria-hidden="true" />{t(name)}</label>
+                <select aria-label={t('A click opens')} disabled={!chosen.green} className="input !mt-0 disabled:opacity-50" value={chosen.target || ''} onChange={(e) => change({ target: e.target.value })}>
+                  <option value="">{t('The tours of this city')}</option>
+                  {mapTours.map((x) => <option key={x.slug} value={`/tours/${x.slug}`}>{x.title}</option>)}
+                </select>
+              </div>
+            )
+          })}
+        </div>
+      </fieldset>
       <fieldset className="mt-8 rounded-sm border border-navy/12 p-4">
         <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('More contact lines')}</legend>
         <p className="text-[13px] text-ink">{t('Add any extra line you like (WhatsApp, a second office, a licence number…). It appears under the contact details in the footer and on the contact page.')}</p>

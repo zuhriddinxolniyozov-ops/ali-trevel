@@ -60,3 +60,11 @@
 @media (prefers-reduced-motion: reduce) { .silk-flow { animation: none; } }
 
 .side-scroll { scrollbar-width: thin; scrollbar-color: rgba(15, 40, 90, 0.25) transparent; }
+
+/* the green cities of the Silk Road map: soft rings spreading out of the dot */
+@keyframes silk-ping { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(2.9); opacity: 0; } }
+.silk-ping { transform-box: fill-box; transform-origin: center; animation: silk-ping 2.4s ease-out infinite; pointer-events: none; }
+.silk-ping-late { animation-delay: 1.2s; }
+.silk-dot { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
+a:hover .silk-dot, a:focus-visible .silk-dot { transform: scale(1.25); }
+@media (prefers-reduced-motion: reduce) { .silk-ping { animation: none; opacity: 0; } }

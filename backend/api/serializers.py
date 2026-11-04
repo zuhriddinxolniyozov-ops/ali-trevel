@@ -1,3 +1,4 @@
+import re
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -53,6 +54,20 @@ class SiteContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SiteContent
         exclude = ["cost_rates"]
+
+    def validate_map_cities(self, value):
+        """Which cities of the home page map are green and where a click leads: a known kind of link only, so a typo cannot send visitors elsewhere."""
+        if not isinstance(value, dict) or len(value) > 40:
+            raise serializers.ValidationError("Choose the cities of the map.")
+        clean = {}
+        for key, item in value.items():
+            if not re.fullmatch(r"[a-z]{3,30}", str(key)) or not isinstance(item, dict):
+                raise serializers.ValidationError("A city of the map is not valid.")
+            target = str(item.get("target") or "").strip()
+            if target and not re.fullmatch(r"/(tours|destinations)/[a-z0-9-]{1,80}(#[a-z]+)?", target):
+                raise serializers.ValidationError("A link must lead to a tour or a destination of this website.")
+            clean[key] = {"green": bool(item.get("green")), "target": target}
+        return clean
 
     def validate_extra_contacts(self, value):
         """Extra lines for the footer and contact page: a label, a value and an optional link, checked and trimmed."""

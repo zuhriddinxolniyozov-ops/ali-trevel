@@ -7,7 +7,7 @@ import { useI18n, useT } from '../i18n'
 import { DestinationCard, SectionHeading, Skeleton, Spinner, TourCard } from '../components/ui'
 import { IMAGES } from '../data'
 import { ReviewCard } from '../components/Trust'
-import SilkRoadMap from '../components/SilkRoadMap'
+import SilkRoadMap, { HeroRoute } from '../components/SilkRoadMap'
 import PackageCard, { PACKAGES } from '../components/PackageCard'
 import BestValue from '../components/BestValue'
 
@@ -67,8 +67,9 @@ export default function Home() {
         <img src={img(IMAGES.hero)} data-orig={IMAGES.hero} alt={t('Registan Square in Samarkand glowing at dusk')} className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-navy/80 via-navy/45 to-navy/90" />
         <div className="girih absolute inset-0 opacity-[0.16]" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-[50%] items-center justify-end pb-14 pr-[max(1rem,calc((100vw-80rem)/2-3rem))] pt-24 xl:flex"><HeroRoute className="pointer-events-auto max-h-[78%] opacity-95 drop-shadow-[0_2px_14px_rgba(0,0,0,0.35)]" /></div>
         <div className="shell relative flex min-h-[calc(100svh-74px)] flex-col justify-end pb-10 pt-24 lg:pb-16">
-          <div className="max-w-3xl animate-rise-in">
+          <div className="max-w-3xl animate-rise-in xl:max-w-[620px]">
             <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-background"><Star className="h-3 w-3 fill-gold text-gold" />{t('Samarkand · Bukhara · Khiva · Tashkent')}</p>
             <h1 id="hero-heading" className="display-xl mt-5 text-ivory">{words.join(' ')} {last && <span className="italic text-turquoise">{last}</span>}</h1>
             <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-background sm:text-[18px]">{t('Unforgettable journeys, authentic experiences, and seamless travel — all in one place.')}</p>

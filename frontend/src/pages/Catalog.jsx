@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Check, Clock, Heart, MapPin, Star, X } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, money, useAuth, useFetch } from '../hooks'
@@ -71,6 +71,8 @@ export function DestinationDetail() {
   const { slug } = useParams()
   const { data: d, loading, error } = useFetch(`/destinations/${slug}/`)
   const tours = useFetch(`/tours/?destination_slug=${slug}`, { list: true })
+  const { hash } = useLocation()
+  useEffect(() => { if (hash === '#tours' && !tours.loading) document.getElementById('tours')?.scrollIntoView({ block: 'start' }) }, [hash, tours.loading, slug])  // the map's green cities open here
   if (loading) return <div className="shell py-24"><Skeleton count={3} /></div>
   if (error || !d) return <NotFound what="Destination" />
   // Single historical places (they belong to a bigger tour) get their own section below the main tours.
@@ -87,7 +89,7 @@ export function DestinationDetail() {
         <p className="max-w-2xl text-[17px] leading-relaxed text-ink">{d.description}</p>
         <p className="mt-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-ink"><Clock className="h-4 w-4" />{t('Suggested')}: {t(d.suggested_duration)}</p>
         {(mainTours.length > 0 || editing) && <>
-          <h2 className="display-lg mt-14">{t('Tours in {name}', { name: d.name })}</h2>
+          <h2 id="tours" className="display-lg mt-14 scroll-mt-28">{t('Tours in {name}', { name: d.name })}</h2>
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{mainTours.map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 60} />)}<AddCard resource="tours" preset={here} label="Add a tour" /></div>
         </>}
         {(places.length > 0 || editing) && <>

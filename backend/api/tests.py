@@ -1585,3 +1585,24 @@ class UzbekNamesForTheTeamTests(APITestCase):
             return original(method, payload)
         Bot(flaky).end_flow(5, "en", "✅ Thank you", follow="Follow ALI TRAVEL")
         self.assertEqual([p["text"] for m, p in api.sent if m == "sendMessage"], ["Follow ALI TRAVEL"])
+
+
+class SilkRoadMapSettingsTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
+        self.api = APIClient()
+        self.api.force_authenticate(self.admin)
+
+    def test_samarkand_bukhara_and_shahrisabz_are_green_from_the_start_and_everyone_can_read_it(self):
+        cities = APIClient().get("/api/site-content/").json()["map_cities"]
+        self.assertEqual({k for k, v in cities.items() if v["green"]}, {"samarkand", "bukhara", "shahrisabz"})
+
+    def test_the_owner_marks_another_city_green_and_chooses_where_a_click_leads(self):
+        chosen = {"samarkand": {"green": True, "target": ""}, "khiva": {"green": True, "target": "/tours/silk-road-11-day-journey"}, "qarshi": {"green": True, "target": "/destinations/kashkadarya#tours"}}
+        self.assertEqual(self.api.put("/api/site-content/", {"map_cities": chosen}, format="json").status_code, 200)
+        self.assertEqual(APIClient().get("/api/site-content/").json()["map_cities"], chosen)
+
+    def test_a_link_to_another_website_or_a_bad_city_is_refused_and_only_staff_can_change_it(self):
+        for bad in ({"khiva": {"green": True, "target": "https://evil.example/"}}, {"khiva": {"green": True, "target": "javascript:alert(1)"}}, {"Khiva!": {"green": True, "target": ""}}, ["khiva"]):
+            self.assertEqual(self.api.put("/api/site-content/", {"map_cities": bad}, format="json").status_code, 400, bad)
+        self.assertEqual(APIClient().put("/api/site-content/", {"map_cities": {}}, format="json").status_code, 403)
