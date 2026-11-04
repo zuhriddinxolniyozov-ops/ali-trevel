@@ -26,7 +26,8 @@ const DEFAULT_SETTINGS = {
   instagram_url: 'https://www.instagram.com/al1_travel1',
   telegram_url: 'https://t.me/al1_travel1',
   facebook_url: 'https://www.facebook.com/share/1CQmva9Sds/',
-  youtube_url: 'https://youtube.com/@alitravel_z?si=XcvxpVc1VFoS8JxV',
+  youtube_url: 'https://www.youtube.com/@Alitravel_uz',
+  x_url: 'https://x.com/alitraveluz',
 }
 
 export function useSettings() {

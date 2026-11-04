@@ -330,7 +330,7 @@ def _social_links():
     content = SiteContent.objects.filter(pk=1).first()
     if not content:
         return settings.SITE_URL
-    pairs = (("Instagram", content.instagram_url), ("YouTube", content.youtube_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url))
+    pairs = (("Instagram", content.instagram_url), ("YouTube", content.youtube_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url), ("X", content.x_url))
     return "\n".join(f"{label}: {url}" for label, url in pairs if url.startswith("https://")) or settings.SITE_URL
 
 

@@ -660,7 +660,7 @@ class Bot:
                 lines.append(f"📍 {esc(loc(content, 'address', lang))}")
             if content.hours:
                 lines.append(f"🕘 {esc(loc(content, 'hours', lang))}")
-            for label, value in (("Instagram", content.instagram_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url), ("YouTube", content.youtube_url)):
+            for label, value in (("Instagram", content.instagram_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url), ("YouTube", content.youtube_url), ("X", content.x_url)):
                 if value:
                     lines.append(f"{label}: {esc(value)}")
         lines.append(f"🌐 {site()}")

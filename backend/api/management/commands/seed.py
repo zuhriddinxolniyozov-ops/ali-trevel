@@ -392,7 +392,8 @@ class Command(BaseCommand):
             "instagram_url": "https://www.instagram.com/al1_travel1",
             "telegram_url": "https://t.me/al1_travel1",
             "facebook_url": "https://www.facebook.com/share/1CQmva9Sds/",
-            "youtube_url": "https://youtube.com/@alitravel_z?si=XcvxpVc1VFoS8JxV",
+            "youtube_url": "https://www.youtube.com/@Alitravel_uz",
+            "x_url": "https://x.com/alitraveluz",
         })
         for i, (slug, name, region, summary, duration, featured) in enumerate(DESTINATIONS):
             dest, _ = models.Destination.objects.update_or_create(slug=slug, defaults=dict(

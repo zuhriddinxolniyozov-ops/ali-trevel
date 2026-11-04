@@ -79,6 +79,7 @@ class SiteContent(models.Model):
     telegram_url = models.URLField(blank=True)
     facebook_url = models.URLField(blank=True)
     youtube_url = models.URLField(blank=True)
+    x_url = models.URLField(blank=True)  # the company page on X (Twitter)
     group_pricing_tiers = models.JSONField(default=default_group_tiers, blank=True)
     analytics_id = models.CharField(max_length=40, blank=True)  # Google Analytics 4 measurement id such as G-XXXXXXXXXX
     extra_contacts = models.JSONField(default=list, blank=True)  # more lines for the footer and contact page: [{"label", "value", "url"}]
