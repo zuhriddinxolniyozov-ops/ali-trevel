@@ -186,6 +186,9 @@ PHRASES = {
     "Ulugh Beg Observatory": ("Ulug'bek rasadxonasi", "Обсерватория Улугбека", "Observatoire d'Ouloug Beg", "Ulugbek-Observatorium", "Observatorio de Ulugbek"),
     "Silk Road Eternal City": ("Silk Road Abadiy shahar", "«Вечный город» Шёлкового пути", "Cité éternelle de la Route de la soie", "„Ewige Stadt“ der Seidenstraße", "Ciudad Eterna de la Ruta de la Seda"),
     "Imam al-Bukhari Complex": ("Imom Buxoriy majmuasi", "Комплекс имама аль-Бухари", "Complexe Imam al-Boukhari", "Imam-al-Buchari-Komplex", "Complejo Imam al-Bujari"),
+    "Kok-Gumbaz Mosque (Qarshi)": ("Ko'k Gumbaz masjidi (Qarshi)", "Мечеть Кок-Гумбаз (Карши)", "Mosquée Kok-Goumbaz (Karchi)", "Kok-Gumbaz-Moschee (Karschi)", "Mezquita Kok-Gumbaz (Karshi)"),
+    "Gijduvan Ceramics Workshop": ("G'ijduvon kulolchilik ustaxonasi", "Гиждуванская керамическая мастерская", "Atelier de céramique de Gijduvan", "Keramikwerkstatt in Gijduvan", "Taller de cerámica de Gijduvan"),
+    "Rabat-i-Malik Caravanserai": ("Rabati Malik karvonsaroyi", "Караван-сарай Рабат-и-Малик", "Caravansérail Rabat-i-Malik", "Karawanserei Rabat-i-Malik", "Caravasar Rabat-i-Malik"),
     "The heart of Samarkand: three madrasahs facing a grand square covered in tile and gold.": (
         "Samarqandning yuragi: koshin va oltin bilan qoplangan katta maydonga qaragan uchta madrasa.",
         "Сердце Самарканда: три медресе вокруг огромной площади, покрытой плиткой и золотом.",

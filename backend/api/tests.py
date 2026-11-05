@@ -215,7 +215,7 @@ class ReviewTests(APITestCase):
 class GroupPricingTests(APITestCase):
     def test_site_content_serves_the_default_tiers_and_only_admins_change_them(self):
         tiers = self.client.get("/api/site-content/").json()["group_pricing_tiers"]
-        self.assertEqual((tiers[0]["min"], tiers[0]["percent"]), (20, 100))
+        self.assertEqual((tiers[0]["min"], tiers[0]["percent"]), (14, 100))
         self.assertIn(1, [t["min"] for t in tiers])
         new = [{"min": 20, "percent": 100}, {"min": 1, "percent": 200}]
         self.assertEqual(self.client.put("/api/site-content/", {"group_pricing_tiers": new}, format="json").status_code, 403)
@@ -479,7 +479,7 @@ class TelegramBotTests(APITestCase):
         self.press("t:city")
         card = self.api.last()["text"]
         self.assertIn("<s>$200</s> <b>$180</b>", card)
-        self.assertIn("20 or more", card)
+        self.assertIn("14 or more", card)
         self.assertIn("https://alitravel.example/tours/city", card)
         self.assertIn("Registan", card)
         self.assertIn("r:city", [b.get("callback_data") for b in self.api.buttons()])
@@ -488,9 +488,9 @@ class TelegramBotTests(APITestCase):
         self.choose("en")
         self.press("prices")
         text = self.api.last()["text"]
-        self.assertIn("20+ travelers — 100%", text)
-        self.assertIn("2–3 travelers — 180%", text)
-        self.assertIn("1 travelers — 220%", text)
+        self.assertIn("14+ travelers — 100%", text)
+        self.assertIn("3–6 travelers — 138%", text)
+        self.assertIn("1–2 travelers — 141%", text)
 
     def test_a_request_reaches_the_team_and_the_admin_panel(self):
         self.choose("en")
@@ -575,7 +575,7 @@ class TelegramBookingTests(APITestCase):
             self.book("4")
         booking = models.BookingRequest.objects.get()
         self.assertEqual((booking.service_slug, booking.guests, booking.telegram_chat_id, booking.lang), ("city", 4, 77, "en"))
-        self.assertEqual((booking.travel_date.isoformat(), booking.phone, booking.estimated_total_usd), ("2099-05-01", "+4915112345", Decimal("1200.00")))  # 200 x 150% x 4
+        self.assertEqual((booking.travel_date.isoformat(), booking.phone, booking.estimated_total_usd), ("2099-05-01", "+4915112345", Decimal("1106.24")))  # 4 travellers: $200 x 138.28% = $276.56 each
         self.assertIn(booking.reference, self.api.texts()[-2])
         self.assertEqual(models.TelegramUser.objects.get(chat_id=77).state, "book_arrival")  # the arrival question follows; skipping it ends the booking
         self.say("⏭ Skip")
@@ -1041,6 +1041,25 @@ class HotelDirectoryTests(APITestCase):
         self.assertEqual(done.json()["gallery"], photos)
         self.client.force_authenticate(None)
         self.assertNotIn(slug, [h["slug"] for h in self.client.get("/api/hotels/").json()])
+
+    def test_admins_add_several_photos_to_a_tour_and_a_destination(self):
+        call_command("seed", verbosity=0)
+        photos = ["/media/uploads/a.jpg", "/media/uploads/b.jpg"]
+        self.assertEqual(self.client.patch("/api/tours/samarkand-city-tour/", {"gallery": photos}, format="json").status_code, 401)
+        self.client.force_authenticate(get_user_model().objects.create_user("boss2@example.com", "boss2@example.com", "x", is_staff=True))
+        self.assertEqual(self.client.patch("/api/tours/samarkand-city-tour/", {"gallery": photos}, format="json").status_code, 200)
+        self.assertEqual(self.client.patch("/api/destinations/samarkand/", {"gallery": photos[:1]}, format="json").status_code, 200)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get("/api/tours/samarkand-city-tour/").json()["gallery"], photos)
+        self.assertEqual(self.client.get("/api/destinations/samarkand/").json()["gallery"], photos[:1])
+
+    def test_the_packages_are_multi_city_and_an_admin_adds_any_tour_to_that_list(self):
+        call_command("seed", verbosity=0)
+        multi = {x["slug"] for x in self.client.get("/api/tours/").json() if x["multi_city"]}
+        self.assertTrue({"silk-road-7-day-journey", "silk-road-11-day-journey", "silk-road-multi-city-tour"} <= multi)
+        self.assertNotIn("samarkand-city-tour", multi)
+        self.client.force_authenticate(get_user_model().objects.create_user("boss3@example.com", "boss3@example.com", "x", is_staff=True))
+        self.assertTrue(self.client.patch("/api/tours/samarkand-city-tour/", {"multi_city": True}, format="json").json()["multi_city"])
 
 
 class SilkRoadPackageTests(APITestCase):
@@ -1515,9 +1534,9 @@ class TelegramTourInfoTests(APITestCase):
         self.press("tg:week")
         text = self.shown()["text"]
         prices = [float(x) for x in re.findall(r"— \$([\d,.]+) / kishi", text)]
-        self.assertGreaterEqual(len(prices), 6)
-        self.assertEqual(prices, sorted(prices, reverse=True))  # 1 traveller pays most, 20+ least
-        self.assertEqual(prices[-1], 300)  # the listed price is for 20 or more
+        self.assertGreaterEqual(len(prices), 5)
+        self.assertEqual(prices, sorted(prices, reverse=True))  # 1 traveller pays most, 14+ least
+        self.assertEqual(prices[-1], 300)  # the listed price is for 14 or more
 
     def test_a_single_place_shows_its_location_and_leads_to_its_tour_not_to_a_booking(self):
         self.start()
@@ -1785,3 +1804,126 @@ class ChangeCredentialsTests(APITestCase):
     def test_signed_out_visitor_cannot_use_it(self):
         self.client.credentials()
         self.assertIn(self.post(current_password="Old-pass-123", new_password="Brand-new-pass-77").status_code, (401, 403))
+
+
+class OwnerGroupPricesTests(APITestCase):
+    """The owner's prices for the 2-day Samarkand tour ($209): 14+ $209, 11-13 $249, 7-10 $267, 3-6 $289, 1-2 $294."""
+
+    def test_the_default_table_gives_exactly_the_owners_prices(self):
+        from .telegram_bot import tier_percent
+        tiers = models.default_group_tiers()
+        for guests, price in ((20, 209), (14, 209), (13, 249), (11, 249), (10, 267), (7, 267), (6, 289), (3, 289), (2, 294), (1, 294)):
+            self.assertEqual(round(209 * tier_percent(tiers, guests) / 100, 2), price, guests)
+
+    def test_the_bot_says_the_price_is_for_the_biggest_group_of_the_table(self):
+        from .telegram_bot import biggest_group
+        self.assertEqual(biggest_group(models.default_group_tiers()), 14)
+        self.assertEqual(biggest_group([{"min": 25, "percent": 100}, {"min": 1, "percent": 150}]), 25)
+
+
+class LocalMarketTests(APITestCase):
+    """The local (so'm) site is a separate copy of the global one: same addresses, own prices, own bookings and settings."""
+
+    RATE = Decimal("12000")
+
+    def setUp(self):
+        call_command("seed", verbosity=0)
+        from .local_copy import make_local
+        make_local(self.RATE)
+        self.boss = get_user_model().objects.create_user("market@example.com", "market@example.com", "x", is_staff=True)
+
+    def get(self, path, market=None):
+        return self.client.get(path, **({"HTTP_X_MARKET": market} if market else {})).json()
+
+    def test_the_copy_has_the_same_tours_at_the_same_addresses_with_prices_30_percent_lower_in_som(self):
+        world = self.get("/api/tours/samarkand-city-tour/")
+        home = self.get("/api/tours/samarkand-city-tour/", "local")
+        self.assertEqual(world["price_from_usd"], 209)                      # the global site keeps dollars
+        self.assertEqual(home["price_from_usd"], 1760000)                   # 209 x 0.7 x 12000 = 1 755 600 -> whole ten thousands
+        self.assertEqual(home["title"], world["title"])
+        self.assertEqual(len(self.get("/api/tours/")), len(self.get("/api/tours/", "local")))
+        self.assertTrue(all("|" not in line or line.split("|")[1].strip().isdigit() for line in home["route"]))
+        self.assertEqual(self.get("/api/site-content/", "local")["usd_rate"], "12000.00")
+        self.assertIsNone(self.get("/api/site-content/")["usd_rate"])
+
+    def test_changes_on_one_site_never_touch_the_other(self):
+        self.client.force_authenticate(self.boss)
+        self.client.patch("/api/tours/samarkand-city-tour/", {"title": "Mahalliy tur", "price_from_usd": 1500000}, format="json", HTTP_X_MARKET="local")
+        self.client.put("/api/site-content/", {"hero_title": "Local hero"}, format="json", HTTP_X_MARKET="local")
+        self.client.force_authenticate(None)
+        self.assertEqual(self.get("/api/tours/samarkand-city-tour/")["title"], "2-Day Samarkand City Tour")
+        self.assertEqual(self.get("/api/tours/samarkand-city-tour/", "local")["title"], "Mahalliy tur")
+        self.assertNotEqual(self.get("/api/site-content/")["hero_title"], "Local hero")
+        self.assertEqual(self.get("/api/site-content/", "local")["hero_title"], "Local hero")
+
+    def test_a_local_booking_is_kept_apart_and_its_total_is_written_in_som(self):
+        body = {"service_type": "tour", "service_slug": "samarkand-city-tour", "service_title": "Samarqand", "full_name": "Ali Valiyev",
+                "email": "ali@example.com", "phone": "+998 90 123 45 67", "travel_date": "2026-12-20", "guests": 2, "estimated_total_usd": 4914000}
+        with mock.patch("api.notifications._send_email") as sent, mock.patch("api.notifications._send_telegram"), self.settings(EMAIL_HOST="smtp.example.com"):
+            reference = self.client.post("/api/bookings-submit/", body, format="json", HTTP_X_MARKET="local").json()["reference"]
+        self.client.force_authenticate(self.boss)
+        local_refs = [b["reference"] for b in self.client.get("/api/bookings/", HTTP_X_MARKET="local").json()]
+        global_refs = [b["reference"] for b in self.client.get("/api/bookings/").json()]
+        self.assertIn(reference, local_refs)
+        self.assertNotIn(reference, global_refs)
+        self.assertEqual(models.BookingRequest.everywhere.get(reference=reference).market, "local")
+        from .market import money
+        self.assertEqual(money(Decimal("4914000"), "local"), "4 914 000 so'm")
+        self.assertEqual(money(Decimal("209"), "global"), "$209.00")
+
+    def test_the_daily_rate_moves_automatic_prices_only(self):
+        from .local_copy import update_rate
+        self.client.force_authenticate(self.boss)
+        self.client.patch("/api/hotels/hotel-platan-samarkand/", {"price_from_usd": 900000}, format="json", HTTP_X_MARKET="local")
+        update_rate(Decimal("13000"))
+        self.client.force_authenticate(None)
+        self.assertEqual(self.get("/api/tours/samarkand-city-tour/", "local")["price_from_usd"], 1900000)   # 209 x 0.7 x 13000 = 1 901 900
+        self.assertEqual(float(self.get("/api/hotels/hotel-platan-samarkand/", "local")["price_from_usd"]), 900000)   # typed by the team: unchanged
+        self.assertEqual(self.get("/api/tours/samarkand-city-tour/")["price_from_usd"], 209)
+
+    def test_running_the_copy_again_adds_nothing(self):
+        from .local_copy import make_local
+        added = make_local(self.RATE)
+        self.assertEqual(sum(v for k, v in added.items()), 0)
+
+    def test_the_owner_sets_the_2_day_tour_to_600_000_som_and_every_price_follows_without_a_guide(self):
+        call_command("local_prices", "--price", "600000", verbosity=0)
+        home = self.get("/api/tours/samarkand-city-tour/", "local")
+        self.assertEqual(home["price_from_usd"], 600000)
+        seven = self.get("/api/tours/silk-road-7-day-journey/", "local")["price_from_usd"]
+        self.assertEqual(seven, float(round(Decimal(790) * Decimal(600000) / Decimal(209) / 10000) * 10000))   # the same proportion
+        self.assertFalse(any("guide" in x.lower() for x in home["included"]))
+        self.assertIn("Guide (on request, extra payment)", home["excluded"])
+        self.assertNotIn("local guide", home["summary"])
+        uz = self.client.get("/api/tours/samarkand-city-tour/", HTTP_X_MARKET="local", HTTP_X_LANG="uz").json()
+        self.assertIn("Gid (xohlasangiz, qo'shimcha to'lov evaziga)", uz["excluded"])
+        self.assertNotIn("gid", uz["summary"].lower())
+        world = self.get("/api/tours/samarkand-city-tour/")
+        self.assertEqual(world["price_from_usd"], 209)                                   # the global site keeps its guide and price
+        self.assertTrue(any("guide" in x.lower() for x in world["included"]))
+        cook = self.get("/api/tours/samarkand-plov-masterclass/", "local")
+        self.assertEqual(cook["guide"], "Local cook (oshpaz)")                           # a class keeps its cook
+
+    def test_a_local_booking_counts_the_guide_cost_only_when_the_traveller_asked_for_one(self):
+        from .accounting import estimate_costs
+        from .market import use
+        with use("local"):
+            plain = models.BookingRequest.objects.create(service_type="tour", service_slug="bukhara-city-tour", service_title="B", full_name="A", email="a@example.com", phone="1", guests=2, estimated_total_usd=1000000)
+            guided = models.BookingRequest.objects.create(service_type="tour", service_slug="bukhara-city-tour", service_title="B", full_name="A", email="a@example.com", phone="1", guests=2, estimated_total_usd=1000000, wants_guide=True)
+            self.assertNotIn("guide", [c for c, _, _ in estimate_costs(plain)])
+            self.assertIn("guide", [c for c, _, _ in estimate_costs(guided)])
+
+    def test_a_local_traveller_says_when_and_where_to_meet_instead_of_the_airport(self):
+        body = {"service_type": "tour", "service_slug": "samarkand-city-tour", "service_title": "Samarqand", "full_name": "Ali Valiyev",
+                "email": "meet@example.com", "phone": "+998 90 123 45 67", "travel_date": "2026-12-20", "guests": 2}
+        with mock.patch("api.notifications._tell_the_team") as team, mock.patch("api.notifications._send_email"), mock.patch("api.notifications._background", side_effect=lambda fn, *a, **k: fn(*a, **k)):
+            ref = self.client.post("/api/bookings-submit/", body, format="json", HTTP_X_MARKET="local").json()["reference"]
+            arrival = {"reference": ref, "email": "meet@example.com", "arrival_date": "2026-12-20", "arrival_time": "09:30"}
+            self.assertEqual(self.client.post("/api/bookings-arrival/", arrival, format="json", HTTP_X_MARKET="local").status_code, 400)   # the place is needed
+            ok = self.client.post("/api/bookings-arrival/", {**arrival, "meeting_place": "Registon maydoni"}, format="json", HTTP_X_MARKET="local")
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(models.BookingRequest.everywhere.get(reference=ref).meeting_place, "Registon maydoni")
+        card = team.call_args.kwargs["telegram_html"]
+        self.assertIn("Uchrashuv", card)
+        self.assertIn("Registon maydoni", card)
+        self.assertNotIn("aeroport", card)

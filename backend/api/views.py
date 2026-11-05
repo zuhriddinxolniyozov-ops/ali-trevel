@@ -16,7 +16,7 @@ from rest_framework.throttling import AnonRateThrottle
 
 from . import notifications
 
-from . import models, serializers as s
+from . import market, models, serializers as s
 
 User = get_user_model()
 
@@ -40,12 +40,24 @@ class ContactThrottle(AnonRateThrottle):
     rate = "20/hour"
 
 
+class CurrentMarket:
+    """A viewset's ``queryset`` is built once when the server starts; build it again for every request so it only holds rows of
+    the market the request is for (global or local, see market.py)."""
+
+    def get_queryset(self):
+        model = self.queryset.model
+        fresh = model.objects.all()
+        if self.queryset.query.order_by:
+            fresh = fresh.order_by(*self.queryset.query.order_by)
+        return fresh
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.method in permissions.SAFE_METHODS or bool(request.user and request.user.is_staff)
 
 
-class CatalogViewSet(viewsets.ModelViewSet):
+class CatalogViewSet(CurrentMarket, viewsets.ModelViewSet):
     """Public read, admin write. Models with a status field only expose published rows to non-admins."""
 
     permission_classes = [IsAdminOrReadOnly]
@@ -125,7 +137,7 @@ class TransportViewSet(CatalogViewSet):
 @api_view(["GET", "PUT"])
 @permission_classes([permissions.AllowAny])
 def site_content(request):
-    obj, _ = models.SiteContent.objects.get_or_create(pk=1)
+    obj = models.SiteContent.current()
     if request.method == "PUT":
         if not request.user.is_staff:
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -188,6 +200,8 @@ def booking_arrival(request):
     ser = s.ArrivalSerializer(data=request.data)
     if not ser.is_valid():
         return Response({"error": "Please check the arrival date and time.", "fields": ser.errors}, status=400)
+    if booking.market == market.LOCAL and not (ser.validated_data.get("meeting_place") or "").strip():
+        return Response({"error": "Please write where we should meet you.", "fields": {"meeting_place": ["Required."]}}, status=400)
     for field, value in ser.validated_data.items():
         setattr(booking, field, value)
     booking.save(update_fields=list(ser.validated_data))
@@ -246,7 +260,7 @@ class SavedItemViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-class MessageAdminViewSet(viewsets.ModelViewSet):
+class MessageAdminViewSet(CurrentMarket, viewsets.ModelViewSet):
     queryset = models.ContactMessage.objects.all()
     serializer_class = s.ContactMessageAdminSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -295,7 +309,7 @@ def customers(request):
             "bookings": len(rows), "total_usd": float(sum((r.final_price_usd if r.final_price_usd is not None else r.estimated_total_usd) - r.discount_usd for r in rows if r.status != "cancelled")),
             "last_booking_at": rows[0].created if rows else None,
             "recent_bookings": [{"reference": r.reference, "service_title": r.service_title, "status": r.status, "travel_date": r.travel_date, "guests": r.guests,
-                                 "arrival": " ".join(x for x in (str(r.arrival_date or ""), r.arrival_time.strftime("%H:%M") if r.arrival_time else "", r.arrival_flight, r.arrival_note) if x)} for r in rows[:5]],
+                                 "arrival": " ".join(x for x in (str(r.arrival_date or ""), r.arrival_time.strftime("%H:%M") if r.arrival_time else "", r.arrival_flight, r.meeting_place, r.arrival_note) if x)} for r in rows[:5]],
         }
 
     people, known_emails = [], set()
@@ -308,7 +322,7 @@ def customers(request):
         if email not in known_emails:
             people.append({"key": f"guest-{email}", "kind": "guest", "name": rows[0].full_name, "email": rows[0].email, "phone": rows[0].phone, "username": "", "lang": rows[0].lang,
                            "chat_id": None, "is_staff": False, "joined": rows[-1].created, **summary(rows)})
-    for t in models.TelegramUser.objects.order_by("-created"):
+    for t in (models.TelegramUser.objects.order_by("-created") if market.current() == market.GLOBAL else []):
         rows = by_chat.get(t.chat_id, [])
         people.append({"key": f"telegram-{t.chat_id}", "kind": "telegram", "name": t.display_name or str(t.chat_id), "email": "", "phone": t.phone or (rows[0].phone if rows else ""),
                        "username": t.username, "lang": t.lang, "chat_id": t.chat_id, "is_staff": False, "joined": t.created, **summary(rows)})
@@ -469,7 +483,7 @@ def upload_image(request):
     return Response({"url": default_storage.url(saved)}, status=201)
 
 
-class PromotionViewSet(viewsets.ModelViewSet):
+class PromotionViewSet(CurrentMarket, viewsets.ModelViewSet):
     queryset = models.Promotion.objects.all()
     serializer_class = s.PromotionSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -483,7 +497,7 @@ def active_promotions(request):
     return Response(s.PromotionSerializer(running, many=True, context={"request": request}).data)
 
 
-class LegalPageViewSet(viewsets.ModelViewSet):
+class LegalPageViewSet(CurrentMarket, viewsets.ModelViewSet):
     """Public read; admins edit. Only the three fixed pages exist, so there is no create or delete."""
 
     queryset = models.LegalPage.objects.all()
@@ -498,7 +512,7 @@ class ReviewThrottle(AnonRateThrottle):
     rate = "8/hour"
 
 
-class ReviewViewSet(viewsets.ModelViewSet):
+class ReviewViewSet(CurrentMarket, viewsets.ModelViewSet):
     """Anyone can read published reviews and send one (it waits for an admin); only admins moderate."""
 
     queryset = models.Review.objects.all()

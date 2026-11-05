@@ -43,12 +43,15 @@ def own_address():
 
 
 class Command(BaseCommand):
-    help = "Warn the team when the https certificate is about to run out or the domain no longer points at this server."
+    help = "Update the local site's dollar rate, and warn the team when the https certificate is about to run out or the domain no longer points at this server."
 
     def add_arguments(self, parser):
         parser.add_argument("--test", action="store_true", help="send the report even when everything is fine")
 
     def handle(self, *args, **options):
+        from api.local_copy import update_rate
+        rate = update_rate()   # every morning the local site's so'm prices follow the Central Bank dollar rate
+        self.stdout.write(f"dollar rate: {rate or 'not updated'}")
         host = urlsplit(settings.SITE_URL).hostname or ""
         if not settings.SITE_URL.startswith("https://") or host in ("", "localhost", "127.0.0.1"):
             self.stdout.write("SITE_URL is not a public https address; nothing to watch.")

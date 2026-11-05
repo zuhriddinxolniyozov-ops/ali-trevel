@@ -66,7 +66,7 @@ class Command(BaseCommand):
         self.report("WARN" if sample else "OK", f"{sample} sample hotel(s) are published: replace them with real partner hotels in Admin" if sample else "No sample hotels published")
         placeholders = [page.slug for page in models.LegalPage.objects.all() if "[" in page.body]
         self.report("WARN" if placeholders else "OK", f"Legal pages still contain [bracketed] placeholders ({', '.join(placeholders)}): fill in the company details and have a lawyer read them" if placeholders else "Legal pages have no placeholders left")
-        content = models.SiteContent.objects.filter(pk=1).first()
+        content = models.SiteContent.current()
         self.report("OK" if content and content.phone_primary and content.email else "WARN", "Contact phone and e-mail are set" if content and content.phone_primary and content.email else "Contact phone/e-mail missing in Admin → Contact & settings")
         if not models.Review.objects.filter(status="published").exists():
             self.report("WARN", "No published reviews yet: the home page shows the three demonstration testimonials until the first real review is published")

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { biggestGroup, useGroupTiers } from '../groupPricing'
 import { Loader2, Upload } from 'lucide-react'
 import { api } from '../api'
 import { useFetch } from '../hooks'
@@ -50,23 +51,25 @@ const LANGUAGE_CHOICES = 'multi:English,Russian,Uzbek,French,German,Spanish'
 
 export const FORMS = {
   tours: {
-    defaults: { status: 'draft', discount_percent: 0, group_pricing: true, price_from_usd: 0, rating: 4.8, review_count: 0, tour_type: 'car', languages: ['English'], group_type: 'Small group', category: 'Culture' },
+    defaults: { status: 'draft', gallery: [], multi_city: false, discount_percent: 0, group_pricing: true, price_from_usd: 0, rating: 4.8, review_count: 0, tour_type: 'car', languages: ['English'], group_type: 'Small group', category: 'Culture' },
     sections: [
       { title: 'Basics', hint: 'What travellers see first on the tour card and tour page.', fields: [
         { k: 'destination', kind: 'destination', label: 'Destination', required: true, help: 'The tour is listed on this destination’s page.' },
         { k: 'title', label: 'Title', tr: true, required: true, placeholder: 'Samarkand City Tour' },
         { k: 'category', label: 'Category', tr: true, placeholder: 'Culture', help: 'Used for the filter buttons on the Tours page.' },
+        { k: 'multi_city', label: 'Show under “Multi-city”', kind: 'bool', help: 'Tick it for a tour that visits several cities: it also appears when visitors press “Multi-city” on the Tours page.' },
         { k: 'summary', label: 'Summary', kind: 'area', tr: true, required: true, help: 'One or two sentences shown on the tour card.' },
         { k: 'description', label: 'Description', kind: 'area', tr: true, help: 'The full text on the tour page.' },
         { k: 'story', label: 'Keepsake text', kind: 'area', tr: true, help: 'A short, beautifully written text shown at the end of the page.' },
         { k: 'image_url', label: 'Photo', kind: 'image', help: 'Upload a photo or paste a link to a wide (landscape) image.' },
+        { k: 'gallery', label: 'More photos', kind: 'gallery', help: 'Upload several photos at once. Visitors slide through them on the tour page.' },
       ] },
       { title: 'Tour details', hint: 'Shown in the “Tour details” panel on the tour page.', fields: [
         { k: 'tour_type', label: 'Tour type', kind: 'select:car,walking,mixed,train,workshop' },
         { k: 'duration_label', label: 'Duration', tr: true, placeholder: 'Half day · 3 hours · Flexible hours' },
         { k: 'group_type', label: 'Group type', tr: true, placeholder: 'Small group' },
         { k: 'max_travelers', label: 'Maximum travelers', kind: 'number', placeholder: '21' },
-        { k: 'group_pricing', label: 'Price depends on group size', kind: 'bool', help: 'On: the price above is for 20 or more travelers and smaller groups pay more per person (set in Group pricing). Off: one price per person for every group.' },
+        { k: 'group_pricing', label: 'Price depends on group size', kind: 'bool', help: 'On: the price above is for {n} or more travelers and smaller groups pay more per person (set in Group pricing). Off: one price per person for every group.' },
         { k: 'languages', label: 'Tour languages', kind: LANGUAGE_CHOICES, help: 'Languages the guide speaks.' },
         { k: 'guide', label: 'Guide', tr: true, placeholder: 'ALI TRAVEL team' },
         { k: 'meeting_point', label: 'Meeting point', tr: true, placeholder: 'Samarkand airport' },
@@ -109,7 +112,7 @@ export const FORMS = {
     ],
   },
   destinations: {
-    defaults: { status: 'draft', order: 0 },
+    defaults: { status: 'draft', order: 0, gallery: [] },
     sections: [
       { title: 'Basics', fields: [
         { k: 'name', label: 'Name', tr: true, required: true, placeholder: 'Samarkand' },
@@ -118,6 +121,7 @@ export const FORMS = {
         { k: 'summary', label: 'Summary', kind: 'area', tr: true, required: true },
         { k: 'description', label: 'Description', kind: 'area', tr: true },
         { k: 'image_url', label: 'Photo', kind: 'image', help: 'Upload a photo or paste a link to a wide (landscape) image.' },
+        { k: 'gallery', label: 'More photos', kind: 'gallery', help: 'Upload several photos at once. Visitors slide through them on the destination page.' },
       ] },
       { title: 'Trip builder', hint: 'Used by the “Plan my trip” page to draft day-by-day itineraries.', fields: [
         { k: 'activities', label: 'Activities', kind: 'list', tr: true, help: 'One activity per line.' },
@@ -201,6 +205,7 @@ function Help({ children }) {
 
 export default function RecordEditor({ resource, record, onDone, label, preset }) {
   const t = useT()
+  const top = biggestGroup(useGroupTiers())
   const form = FORMS[resource]
   const all = flat(form)
   const needsDestination = all.some((f) => f.kind === 'destination')
@@ -288,7 +293,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
       return (
         <label key={k} className="flex cursor-pointer items-start gap-3 rounded-sm border border-navy/10 bg-white px-4 py-3 text-[14px]">
           <input type="checkbox" className="mt-1 h-4 w-4" checked={!!value} onChange={(e) => set(e.target.checked)} />
-          <span><span className="font-medium text-navy">{t(fl)}</span><Help>{help && t(help)}</Help></span>
+          <span><span className="font-medium text-navy">{t(fl)}</span><Help>{help && t(help, { n: top })}</Help></span>
         </label>
       )
     }

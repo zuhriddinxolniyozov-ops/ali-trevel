@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Check, Plus, Trash2, X } from 'lucide-react'
 import { discounted, exactMoney } from '../hooks'
 import { groupPercent } from '../groupPricing'
+import { isLocal, roundPrice } from '../market'
 import { useT } from '../i18n'
 import BookingForm from './BookingForm'
 import { Photo } from './ui'
@@ -80,7 +81,7 @@ function SelectionDialog({ onClose }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
-  const one = (x, g, tiers) => discounted(x.price_from_usd, x.effective_discount) * (x.group_pricing ? groupPercent(tiers, g) / 100 : 1)
+  const one = (x, g, tiers) => roundPrice(discounted(x.price_from_usd, x.effective_discount) * (x.group_pricing ? groupPercent(tiers, g) / 100 : 1))
   const priceFor = (g, tiers) => items.reduce((sum, x) => sum + one(x, g, tiers), 0)
   const title = `${t('{n} tours', { n: items.length })}: ${items.map((x) => x.title).join(' + ')}`.slice(0, 250)
   const summary = items.map((x, i) => `${i + 1}. ${x.title} — ${t('from')} ${exactMoney(discounted(x.price_from_usd, x.effective_discount))} / ${t('person')}`).join('\n')
@@ -105,7 +106,7 @@ function SelectionDialog({ onClose }) {
         )}
         {items.length > 0 || sent ? (
           <div className="mt-5">
-            <BookingForm serviceType="tour" serviceTitle={title} estimatedTotal={items.reduce((s, x) => s + discounted(x.price_from_usd, x.effective_discount), 0)}
+            <BookingForm guideOptional={isLocal} serviceType="tour" serviceTitle={title} estimatedTotal={items.reduce((s, x) => s + discounted(x.price_from_usd, x.effective_discount), 0)}
               priceFor={grouped ? priceFor : null} extra={{ details_summary: summary }} onSubmitted={() => setSent(true)}
               intro="Tell us when you would like to start. Our team will arrange the tours one after another and confirm the schedule in writing." />
           </div>

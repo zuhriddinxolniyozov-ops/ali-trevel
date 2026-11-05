@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isLocal } from '../market'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, useFetch } from '../hooks'
@@ -36,7 +37,7 @@ function PromotionForm({ initial, onDone }) {
     const body = { title: f.title, message: f.message, percent: Number(f.percent), applies_to: f.applies_to, destinations: f.destinations, tours: f.tours, starts_on: f.starts_on || null, ends_on: f.ends_on || null, active: f.active, i18n }
     try { f.id ? await api.patch(`/promotions/${f.id}/`, body) : await api.post('/promotions/', body); onDone(true) } catch (ex) { setError(ex.message); setBusy(false) }
   }
-  const sample = 289
+  const sample = isLocal ? 2000000 : 289
 
   return (
     <form onSubmit={save} className="max-w-3xl space-y-5 rounded-md border border-navy/10 bg-white p-6">
@@ -46,7 +47,7 @@ function PromotionForm({ initial, onDone }) {
           <span className="mt-1 block text-[12px] font-normal text-ink/80">{t('Shown in the banner at the top of the website.')}</span></label>
         <label className="label sm:col-span-2">{t('Message')}<input className={`${field} mt-1`} value={f.message} onChange={set('message')} placeholder={t('Prices already include the discount.')} /></label>
         <label className="label">{t('Discount (%)')} <span className="text-destructive">*</span><input required type="number" min="1" max="90" className={`${field} mt-1`} value={f.percent} onChange={set('percent')} />
-          <span className="mt-1 block text-[12px] font-normal text-ink/80">{t('Example')}: ${sample} → {exactMoney(discounted(sample, f.percent))}</span></label>
+          <span className="mt-1 block text-[12px] font-normal text-ink/80">{t('Example')}: {exactMoney(sample)} → {exactMoney(discounted(sample, f.percent))}</span></label>
         <label className="label">{t('Applies to')}<select className={`${field} mt-1`} value={f.applies_to} onChange={set('applies_to')}>{APPLIES.map(([k, l]) => <option key={k} value={k}>{t(l)}</option>)}</select></label>
         <label className="label">{t('Starts on')}<input type="date" className={`${field} mt-1`} value={f.starts_on || ''} onChange={set('starts_on')} /></label>
         <label className="label">{t('Ends on')}<input type="date" className={`${field} mt-1`} value={f.ends_on || ''} onChange={set('ends_on')} />

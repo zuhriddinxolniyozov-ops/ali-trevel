@@ -21,6 +21,8 @@ from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
+from .market import current as current_market
+from .views import CurrentMarket
 from . import models
 
 ZERO = Decimal("0")
@@ -28,7 +30,7 @@ CENTS = Decimal("0.01")
 
 
 def amount_field(**kwargs):
-    return serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=False, **kwargs)
+    return serializers.DecimalField(max_digits=16, decimal_places=2, coerce_to_string=False, **kwargs)
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -45,6 +47,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Expense
         fields = "__all__"
+        read_only_fields = ["market"]
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -53,11 +56,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = models.Payment.objects.filter(booking__market=current_market())   # payments of this market's bookings
         return qs.filter(booking_id=self.request.query_params["booking"]) if "booking" in self.request.query_params else qs
 
 
-class ExpenseViewSet(viewsets.ModelViewSet):
+class ExpenseViewSet(CurrentMarket, viewsets.ModelViewSet):
     queryset = models.Expense.objects.all()
     serializer_class = ExpenseSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -175,7 +178,7 @@ def booking_finance(request, pk):
 
 def cost_rates():
     """The saved cost rates (missing ones fall back to the defaults) as numbers."""
-    site = models.SiteContent.objects.first()
+    site = models.SiteContent.current()
     rates = dict(models.default_cost_rates(), **((site.cost_rates if site else None) or {}))
     return {k: Decimal(str(rates[k] or 0)) for k in models.default_cost_rates()}
 
@@ -203,7 +206,8 @@ def estimate_costs(booking):
         cars = math.ceil(guests / max(rates["car_seats"], 1))
         nights = days - 1 if days > 1 else 0
         rooms = math.ceil(guests / 2)
-        items.append(("guide", f"Guide: {days} day(s)", rates["guide_per_day"] * days))
+        if booking.market != "local" or booking.wants_guide:   # on the local site the guide is an extra the traveller asks for
+            items.append(("guide", f"Guide: {days} day(s)", rates["guide_per_day"] * days))
         items.append(("transport", f"Car and driver: {cars} car(s) x {days} day(s)", rates["car_per_day"] * cars * days))
         if nights:
             items.append(("hotel", f"Hotel: {nights} night(s) x {rooms} room(s)", rates["hotel_per_room_night"] * nights * rooms))
@@ -242,7 +246,7 @@ def auto_costs(request, pk):
 @permission_classes([permissions.IsAdminUser])
 def rates(request):
     """The cost rates the automatic costs are worked out from. Saving them recalculates every confirmed and completed booking."""
-    site, _ = models.SiteContent.objects.get_or_create(pk=1)
+    site = models.SiteContent.current()
     if request.method == "PUT":
         saved = dict(models.default_cost_rates(), **(site.cost_rates or {}))
         for key in saved:
@@ -283,7 +287,7 @@ def summary(request):
     revenue = sum((m["total_due"] for _, _, m in chosen), ZERO)
     tour_costs = sum((m["costs"] for _, _, m in chosen), ZERO)
     general_costs = sum((e.amount_usd for e in general if in_range(e.spent_on, start, end)), ZERO)
-    received = sum((p.amount_usd for p in models.Payment.objects.all() if in_range(p.paid_on, start, end)), ZERO)
+    received = sum((p.amount_usd for p in models.Payment.objects.filter(booking__market=current_market()) if in_range(p.paid_on, start, end)), ZERO)
     outstanding = sum((m["balance"] for _, _, m in chosen if m["balance"] > 0), ZERO)
     expenses = tour_costs + general_costs
     profit = revenue - expenses
@@ -356,7 +360,7 @@ def export_csv(request):
 def invoice(request, pk):
     booking = bookings_queryset().get(pk=pk)
     m = money(booking)
-    site = models.SiteContent.objects.first()
+    site = models.SiteContent.current()
     guests = max(booking.guests, 1)
     gross = m["price"]
     return Response({

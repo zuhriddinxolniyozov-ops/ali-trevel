@@ -42,9 +42,29 @@ class LocalizedMixin:
         return data
 
 
+# Fields that hold a price: when an admin changes one of them on a local listing, that listing stops following the dollar rate.
+MONEY_FIELDS = ("price_from_usd", "entrance_fee_usd", "base_price_usd", "extra_passenger_usd", "route", "cost_items")
+
+
+class LocalPriceMixin:
+    def update(self, instance, validated_data):
+        if getattr(instance, "price_auto", False):
+            for field in MONEY_FIELDS:
+                if field in validated_data and validated_data[field] != getattr(instance, field, None):
+                    validated_data["price_auto"] = False
+                    break
+        return super().update(instance, validated_data)
+
+
 def model_serializer(model, **extra):
+    """A serializer of every field. The market a row belongs to is decided by the request (see market.py), never by the data sent."""
+    fields = {f.name for f in model._meta.get_fields()}
+    locked = [x for x in ("market", "price_source") if x in fields]
+    extra["read_only_fields"] = [*extra.get("read_only_fields", []), *locked]
     meta = type("Meta", (), {"model": model, "fields": "__all__", **extra})
     bases = (LocalizedMixin, serializers.ModelSerializer) if hasattr(model, "i18n") else (serializers.ModelSerializer,)
+    if "price_auto" in fields:
+        bases = (LocalPriceMixin, *bases)
     return type(f"{model.__name__}Serializer", bases, {"Meta": meta})
 
 
@@ -54,6 +74,7 @@ class SiteContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SiteContent
         exclude = ["cost_rates"]
+        read_only_fields = ["market", "usd_rate", "usd_rate_date"]
 
     def validate_map_cities(self, value):
         """Which cities of the home page map are green and where a click leads: a known kind of link only, so a typo cannot send visitors elsewhere."""
@@ -116,6 +137,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.BookingRequest
         fields = "__all__"
+        read_only_fields = ["market"]
 
     def to_representation(self, instance):
         from .names import service_name
@@ -134,9 +156,9 @@ ReviewAdminSerializer = model_serializer(models.Review, read_only_fields=["creat
 
 
 class TourSerializer(model_serializer(models.Tour)):
-    price_from_usd = serializers.DecimalField(max_digits=8, decimal_places=2, coerce_to_string=False)
+    price_from_usd = serializers.DecimalField(max_digits=14, decimal_places=2, coerce_to_string=False)
     rating = serializers.DecimalField(max_digits=2, decimal_places=1, coerce_to_string=False)
-    entrance_fee_usd = serializers.DecimalField(max_digits=8, decimal_places=2, coerce_to_string=False, allow_null=True, required=False)
+    entrance_fee_usd = serializers.DecimalField(max_digits=14, decimal_places=2, coerce_to_string=False, allow_null=True, required=False)
 
 
 class BookingSubmitSerializer(serializers.ModelSerializer):
@@ -145,7 +167,7 @@ class BookingSubmitSerializer(serializers.ModelSerializer):
         fields = [
             "service_type", "service_slug", "service_title", "full_name", "email", "phone",
             "travel_date", "end_date", "guests", "details_summary", "special_requests",
-            "estimated_total_usd",
+            "estimated_total_usd", "wants_guide",
         ]
         extra_kwargs = {"estimated_total_usd": {"required": False}}
 
@@ -153,8 +175,8 @@ class BookingSubmitSerializer(serializers.ModelSerializer):
 class ArrivalSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.BookingRequest
-        fields = ["arrival_date", "arrival_time", "arrival_flight"]
-        extra_kwargs = {"arrival_date": {"required": True, "allow_null": False}, "arrival_time": {"required": True, "allow_null": False}, "arrival_flight": {"required": False}}
+        fields = ["arrival_date", "arrival_time", "arrival_flight", "meeting_place"]
+        extra_kwargs = {"arrival_date": {"required": True, "allow_null": False}, "arrival_time": {"required": True, "allow_null": False}, "arrival_flight": {"required": False}, "meeting_place": {"required": False}}
 
 
 class UserSerializer(serializers.ModelSerializer):

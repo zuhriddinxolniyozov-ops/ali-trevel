@@ -160,7 +160,7 @@ register_phrases()
 
 def package_fields(defaults):
     """Fields of the 11-day tour, built on the shared defaults of the regional tours."""
-    return dict(defaults, title=TITLE, destination_slug="samarkand", destination_name="Samarkand", category="Culture", duration_label="11 days", group_type="Small group",
+    return dict(defaults, title=TITLE, destination_slug="samarkand", destination_name="Samarkand", category="Culture", multi_city=True, duration_label="11 days", group_type="Small group",
                 tour_type="car", group_pricing=True, summary=SUMMARY, description=DESCRIPTION, story=STORY, meeting_point=base.MEETING, price_from_usd=PRICE, featured=True,
                 image_url=photo("Kalta Minor 01.jpg"), route=ROUTE, itinerary=ITINERARY, highlights=[h[0] for h in HIGHLIGHTS],
                 included=[i[0] for i in INCLUDED] + ["Taxi service between the places", "Airport pickup"], excluded=base.EXCLUDED, parent_slug="", entrance_fee_usd=None)

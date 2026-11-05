@@ -5,7 +5,8 @@ import { Reveal, discounted, exactMoney, money } from '../hooks'
 import { useI18n, useT } from '../i18n'
 import { EditButton } from '../edit/Add'
 import { SelectToggle } from './Selection'
-import { usesGroupPricing } from '../groupPricing'
+import { biggestGroup, useGroupTiers, usesGroupPricing } from '../groupPricing'
+import Gallery from './Gallery'
 
 /** A price; with a discount the old price is crossed out, the new one follows, plus a "-20%" badge. */
 export function PriceTag({ amount, percent = 0, className = '', badge = true }) {
@@ -76,6 +77,16 @@ export function DestinationCard({ destination: d, delay = 0 }) {
     <Reveal delay={delay} className="h-full">
       <article data-edit-record={`destinations:${d.slug}`} className="card-hover group relative h-full overflow-hidden rounded-[4px] border border-navy/10 bg-card">
         <EditButton resource="destinations" record={d} />
+        {d.gallery?.length > 0 ? (
+          <div className="relative">
+            <Gallery images={[d.image_url, ...d.gallery]} alt={d.name} to={`/destinations/${d.slug}`} className="aspect-[5/4]" dots={false} />
+            <div className="pointer-events-none absolute inset-0 z-[5] bg-gradient-to-t from-navy/85 via-navy/10 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[6] p-5 lg:p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-turquoise">{d.region}</p>
+              <h3 className="mt-1.5 font-heading text-[26px] text-ivory lg:text-[30px]">{d.name}</h3>
+            </div>
+          </div>
+        ) : (
         <Link to={`/destinations/${d.slug}`} className="block">
           <div className="relative aspect-[5/4] overflow-hidden">
             <Photo src={d.image_url} alt={d.name} className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]" />
@@ -86,6 +97,7 @@ export function DestinationCard({ destination: d, delay = 0 }) {
             </div>
           </div>
         </Link>
+        )}
         <div className="card-pad p-5 lg:p-6">
           <p className="hide-in-row text-[14.5px] leading-relaxed text-ink">{d.summary}</p>
           <div className="mt-5 flex items-center justify-between gap-3 border-t border-navy/10 pt-4">
@@ -100,16 +112,25 @@ export function DestinationCard({ destination: d, delay = 0 }) {
 
 export function TourCard({ tour: t, delay = 0 }) {
   const tr = useT()
+  const top = biggestGroup(useGroupTiers())
   return (
     <Reveal delay={delay} className="h-full">
       <article data-edit-record={`tours:${t.slug}`} className="card-hover group relative flex h-full flex-col overflow-hidden rounded-[4px] border border-navy/10 bg-card">
         <EditButton resource="tours" record={t} />
         <div className="relative">
+        {t.gallery?.length > 0 ? (
+          <>
+            <Gallery images={[t.image_url, ...t.gallery]} alt={t.title} to={`/tours/${t.slug}`} className="aspect-[4/3]" />
+            <span className="pointer-events-none absolute left-4 top-4 z-10 rounded-full bg-ivory/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-navy backdrop-blur">{tr(t.category)}</span>
+            {t.effective_discount > 0 && Number(t.price_from_usd) > 0 && <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-destructive px-3 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
+          </>
+        ) : (
         <Link to={`/tours/${t.slug}`} className="relative block aspect-[4/3] overflow-hidden">
           <Photo src={t.image_url} alt={t.title} className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]" />
           <span className="absolute left-4 top-4 rounded-full bg-ivory/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-navy backdrop-blur">{tr(t.category)}</span>
           {t.effective_discount > 0 && Number(t.price_from_usd) > 0 && <span className="absolute bottom-3 left-3 rounded-full bg-destructive px-3 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
         </Link>
+        )}
         <SelectToggle tour={t} />
         </div>
         <div className="card-pad flex flex-1 flex-col p-5">
@@ -133,7 +154,7 @@ export function TourCard({ tour: t, delay = 0 }) {
           <div className="mt-auto flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
             {Number(t.price_from_usd) > 0 || !t.entrance_fee_usd ? (
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink">{tr(usesGroupPricing(t) ? 'From, group of 20+' : 'From')}</p>
+                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink">{tr(usesGroupPricing(t) ? 'From, group of {n}+' : 'From', { n: top })}</p>
                 <p className="text-[20px] font-medium text-navy"><PriceTag amount={t.price_from_usd} percent={t.effective_discount} /><span className="ml-1 text-[0.78em] text-ink">/ {tr('person')}</span></p>
               </div>
             ) : (

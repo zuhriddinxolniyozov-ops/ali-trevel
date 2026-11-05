@@ -170,21 +170,23 @@ def _fields(booking):
 def _booking_data(booking):
     """Copy what the messages need into plain values, so a background thread never touches the database."""
     from .models import SiteContent
-    site = SiteContent.objects.filter(pk=1).first()
+    site = SiteContent.current()
     phone = (site.phone_primary if site else "") or "+998942222498"
     telegram_link = (site.telegram_url if site and site.telegram_url else "") or "https://t.me/al1_travel1"
     team_email = (site.email if site and site.email else "") or "alitravel004@gmail.com"
-    total = f"\nEstimated total: ${booking.estimated_total_usd:,.2f} (sample rate, confirmed by our team).\n" if booking.estimated_total_usd else ""
+    from .market import LOCAL, money
+    local = getattr(booking, "market", "") == LOCAL
+    total = f"\nEstimated total: {money(booking.estimated_total_usd, booking.market)} (sample rate, confirmed by our team).\n" if booking.estimated_total_usd else ""
     return {
         "ref": booking.reference, "name": booking.full_name, "email": booking.email, "phone": booking.phone, "service": booking.service_title,
         "date": booking.travel_date.isoformat() if booking.travel_date else "", "guests": booking.guests, "lang": booking.lang or "en",
         "details": (booking.details_summary or "")[:1500], "requests": (booking.special_requests or "")[:600], "status": booking.status,
-        "total": f"${booking.estimated_total_usd:,.2f}" if booking.estimated_total_usd else "-", "phone_team": phone, "telegram_link": telegram_link, "team_email": team_email, "total_line": total,
+        "total": money(booking.estimated_total_usd, booking.market) if booking.estimated_total_usd else "-", "phone_team": phone, "telegram_link": telegram_link, "team_email": team_email, "total_line": total,
         "review_url": f"{settings.SITE_URL}/tours/{booking.service_slug}" if booking.service_slug else settings.SITE_URL,
-        "chat": booking.telegram_chat_id, "source": "Telegram bot" if booking.telegram_chat_id else "Website",
+        "chat": booking.telegram_chat_id, "source": "Telegram bot" if booking.telegram_chat_id else ("Local website (so'm)" if local else "Website"), "local": local,
         "type": booking.service_type, "end": booking.end_date.strftime("%d.%m.%Y") if booking.end_date else "",
         "service_uz": uz_name(booking.service_type, booking.service_slug, booking.service_title),
-        "estimate": f"${booking.estimated_total_usd:,.0f}" if booking.estimated_total_usd else "",
+        "estimate": money(booking.estimated_total_usd, booking.market, decimals=False) if booking.estimated_total_usd else "",
     }
 
 
@@ -230,7 +232,7 @@ def _booking_html(data):
     date = data["date"] and f"{data['date'][8:10]}.{data['date'][5:7]}.{data['date'][:4]}"
     when = f"{date} → {data['end']}" if date and data["end"] else (date or "—")
     lines = [f"🆕 <b>Yangi bron so'rovi</b>   <code>{e(data['ref'])}</code>",
-             f"📍 Manba: {'🤖 Telegram bot' if data['chat'] else '🌐 Sayt'}", "",
+             f"📍 Manba: {'🤖 Telegram bot' if data['chat'] else ('🇺🇿 Mahalliy sayt (so‘m)' if data.get('local') else '🌐 Sayt')}", "",
              f"<b>{KINDS.get(data['type'], '🧳 Xizmat')}:</b> {e(data['service_uz'])}",
              f"📅 <b>Sana:</b> {e(when)}",
              f"👥 <b>Mehmonlar:</b> {data['guests']}"]
@@ -281,8 +283,19 @@ def booking_status_changed(booking):
 
 
 def arrival_received(booking):
-    """Tell the team when and how a traveller reaches Samarkand airport."""
+    """Tell the team when and how a traveller reaches Samarkand airport (global site), or when and where to meet them (local site)."""
     when = " ".join(x for x in (booking.arrival_date.isoformat() if booking.arrival_date else "", booking.arrival_time.strftime("%H:%M") if booking.arrival_time else "") if x)
+    if booking.meeting_place:
+        e = lambda value: html.escape(str(value), quote=False)
+        text = (f"Booking: {booking.reference} ({booking.service_title})\nTraveller: {booking.full_name} · {booking.phone}\nTour date: {booking.travel_date or '-'}\n"
+                f"Meeting: {when or '-'} at {booking.meeting_place}\n\nOpen: {settings.SITE_URL}/admin/bookings")
+        card = ["📍 <b>Uchrashuv joyi va vaqti</b>   <code>" + e(booking.reference) + "</code>", "",
+                f"<b>{e(uz_name(booking.service_type, booking.service_slug, booking.service_title))}</b>", f"👤 {e(booking.full_name)} · 📞 {e(booking.phone)}",
+                f"📅 Tur sanasi: {_uz_date(booking.travel_date)}", "",
+                f"🗓 <b>Uchrashuv:</b> {e(_uz_date(booking.arrival_date))}" + (f", soat {booking.arrival_time.strftime('%H:%M')}" if booking.arrival_time else ""),
+                f"📍 <b>Joy:</b> {e(booking.meeting_place)}"]
+        _background(_tell_the_team, f"Meeting details for {booking.reference}", text, None if booking.email.endswith(".invalid") else booking.email, telegram_html="\n".join(card))
+        return
     lines = [f"Booking: {booking.reference} ({booking.service_title})", f"Traveller: {booking.full_name} · {booking.phone}", f"Tour date: {booking.travel_date or '-'}",
              f"Arrives at Samarkand airport: {when or '-'}", f"Flight / train: {booking.arrival_flight or '-'}"]
     if booking.arrival_note:
@@ -327,7 +340,7 @@ def _thank_reviewer(data):
 def _social_links():
     """The company's social networks from Contact & settings, one per line."""
     from .models import SiteContent
-    content = SiteContent.objects.filter(pk=1).first()
+    content = SiteContent.current()
     if not content:
         return settings.SITE_URL
     pairs = (("Instagram", content.instagram_url), ("YouTube", content.youtube_url), ("Telegram", content.telegram_url), ("Facebook", content.facebook_url), ("X", content.x_url))

@@ -9,6 +9,7 @@ import { SelectionProvider } from './Selection'
 import Analytics from './Analytics'
 import { Socials } from './Socials'
 import LogoMark from './LogoMark'
+import MarketSwitch from './MarketSwitch'
 
 export { Socials }
 
@@ -124,18 +125,19 @@ function Header() {
     <header className={`sticky top-0 z-50 border-b border-navy/10 bg-ivory/95 backdrop-blur-md transition-shadow duration-500 ${scrolled ? 'shadow-[0_18px_40px_-32px_rgba(0,35,102,0.55)]' : ''}`}>
       <div className="shell flex h-[74px] items-center justify-between gap-6">
         <Logo />
-        <nav aria-label={t('Main navigation')} className="hidden items-center gap-3 xl:flex">
+        <nav aria-label={t('Main navigation')} className="hidden items-center gap-3 2xl:flex">
           {NAV.map(([label, to]) => (
             <NavLink key={to} to={to} className={({ isActive }) => `link-underline whitespace-nowrap text-[11px] uppercase tracking-[0.04em] transition-colors ${isActive ? 'text-navy' : 'text-ink hover:text-navy'}`}>{t(label)}</NavLink>
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <MarketSwitch size="sm" className="hidden md:inline-flex" />
           <LanguageMenu />
           {isAuthenticated ? (
             <div className="relative hidden lg:block">
               <button type="button" onClick={() => setMenu((m) => !m)} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-navy hover:bg-navy/5">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-navy text-[11px] text-ivory">{(user?.full_name || user?.email || 'A').slice(0, 1).toUpperCase()}</span>
-                {user?.full_name ? user.full_name.split(' ')[0] : t('Account')}
+                <span className="hidden min-[1700px]:inline">{user?.full_name ? user.full_name.split(' ')[0] : t('Account')}</span>
               </button>
               {menu && (
                 <div onClick={() => setMenu(false)} className="absolute right-0 mt-2 w-56 rounded-md border border-navy/10 bg-ivory p-1 text-sm shadow-lg">
@@ -150,7 +152,7 @@ function Header() {
             <Link to="/login" className="hidden rounded-full px-3 py-2 text-[13px] font-medium text-navy hover:bg-navy/5 lg:inline-flex">{t('Sign In')}</Link>
           )}
           <Link to="/plan" className="btn-liquid hidden h-11 shrink-0 items-center whitespace-nowrap rounded-full bg-navy px-5 text-[13px] font-medium tracking-[0.02em] text-ivory hover:text-navy sm:inline-flex">{t('Plan My Trip')}</Link>
-          <button className="rounded-full p-2 text-navy xl:hidden" aria-label={t('Open menu')} onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
+          <button className="rounded-full p-2 text-navy 2xl:hidden" aria-label={t('Open menu')} onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
         </div>
       </div>
 
@@ -164,6 +166,10 @@ function Header() {
                   <li key={to}><NavLink to={to} className={({ isActive }) => `block rounded-md px-3 py-3 font-heading text-[22px] ${isActive ? 'bg-sand-soft text-navy' : 'text-navy/80 hover:bg-sand-soft'}`}>{t(label)}</NavLink></li>
                 ))}
               </ul>
+              <div className="mt-6 border-t border-navy/10 pt-5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink">{t('Site version')}</p>
+                <MarketSwitch className="mt-3" />
+              </div>
               <div className="mt-6 border-t border-navy/10 pt-5">
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink">{t('Language')}</p>
                 <div className="mt-3 flex flex-wrap gap-2">

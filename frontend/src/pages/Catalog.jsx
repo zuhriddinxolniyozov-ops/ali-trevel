@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Check, Clock, Heart, MapPin, Star, X } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, money, useAuth, useFetch } from '../hooks'
-import { usesGroupPricing } from '../groupPricing'
+import { biggestGroup, useGroupTiers, usesGroupPricing } from '../groupPricing'
 import { useT } from '../i18n'
 import { PACKAGES } from '../components/PackageCard'
 import PlaceMap, { PinLink, located, routeUrl } from '../components/PlaceMap'
@@ -16,6 +16,10 @@ import { AddCard, EditButton, EditRecordBar } from '../edit/Add'
 import { useEdit } from '../edit/context'
 import { TourFaq, TourReviews, TrustPanel } from '../components/Trust'
 import Seo, { tourJsonLd } from '../components/Seo'
+import { isLocal } from '../market'
+
+/** The cover first, then the extra photos the team uploaded. */
+const photosOf = (x) => [x.image_url, ...(x.gallery || [])].filter(Boolean)
 
 function NotFound({ what }) {
   const t = useT()
@@ -86,6 +90,7 @@ export function DestinationDetail() {
       <PageHero eyebrow={d.region} title={d.name} description={d.summary} image={d.image_url} />
       <EditRecordBar resource="destinations" record={d} label="Edit destination" />
       <div className="shell py-16 lg:py-24">
+        {d.gallery?.length > 0 && <div className="mb-10 max-w-4xl"><Gallery images={photosOf(d)} alt={d.name} className="aspect-[16/10]" rounded="rounded-sm" thumbs arrows="always" /></div>}
         <p className="max-w-2xl text-[17px] leading-relaxed text-ink">{d.description}</p>
         <p className="mt-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-ink"><Clock className="h-4 w-4" />{t('Suggested')}: {t(d.suggested_duration)}</p>
         {(mainTours.length > 0 || editing) && <>
@@ -108,9 +113,12 @@ export function Tours() {
   const t = useT()
   const { data, loading } = useFetch('/tours/', { list: true })
   const [cat, setCat] = useState('All')
-  const cats = useMemo(() => ['All', ...new Set(data.map((x) => x.category))], [data])
+  const MULTI = 'Multi-city'
+  const isMulti = (c) => c === MULTI || c === t(MULTI)   // the category arrives translated
+  const inMulti = (x) => x.multi_city || isMulti(x.category)
+  const cats = useMemo(() => ['All', ...new Set(data.flatMap((x) => [isMulti(x.category) ? MULTI : x.category, ...(x.multi_city ? [MULTI] : [])]))], [data])   // eslint-disable-line react-hooks/exhaustive-deps
   const rank = (x) => { const i = Object.keys(PACKAGES).indexOf(x.slug); return i < 0 ? 99 : i }  // the three packages come first, then the rest as before
-  const shown = (cat === 'All' ? data : data.filter((x) => x.category === cat)).map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x)
+  const shown = (cat === 'All' ? data : data.filter((x) => (cat === MULTI ? inMulti(x) : x.category === cat))).map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x)
   return (
     <>
       <Seo title={t('Tours & Experiences')} description={t('Private and small-group tours led by local, licensed guides.')} />
@@ -145,6 +153,7 @@ function Yes({ yes }) {
 
 export function TourDetail() {
   const t = useT()
+  const top = biggestGroup(useGroupTiers())
   const { slug } = useParams()
   const [booked, setBooked] = useState(null) // set once a request is sent, so the plan can show real dates
   useEffect(() => { if (booked) document.getElementById('booked-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [booked])
@@ -171,6 +180,7 @@ export function TourDetail() {
             {tour.review_count > 0 && <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 fill-gold text-gold" />{Number(tour.rating).toFixed(1)} ({tour.review_count} {t('demo reviews')})</span>}
             <SaveButton type="tour" slug={tour.slug} title={tour.title} image={tour.image_url} meta={tour.duration_label} />
           </div>
+          {tour.gallery?.length > 0 && <div className="mt-8"><Gallery images={photosOf(tour)} alt={tour.title} className="aspect-[16/10]" rounded="rounded-sm" thumbs arrows="always" /></div>}
           <p className="mt-8 text-[17px] leading-relaxed text-ink">{tour.description}</p>
 
           <h3 className="mt-10 font-heading text-[26px]">{t('Tour details')}</h3>
@@ -182,7 +192,7 @@ export function TourDetail() {
             <Fact label={t('Transport')}><Yes yes={tour.transport_included} /></Fact>
             <Fact label={t('Entrance tickets')}><Yes yes={tour.tickets_included} /></Fact>
             <Fact label={t('Pickup')}><Yes yes={tour.pickup_included} /></Fact>
-            {tour.guide && <Fact label={t('Guide')}>{t(tour.guide)}</Fact>}
+            {tour.guide ? <Fact label={t('Guide')}>{t(tour.guide)}</Fact> : isLocal && tour.tour_type !== 'workshop' && <Fact label={t('Guide')}>{t('Not in the price · on request, extra payment')}</Fact>}
             {tour.meeting_point && <Fact label={t('Meeting point')}>{t(tour.meeting_point)}</Fact>}
           </dl>
 
@@ -224,9 +234,9 @@ export function TourDetail() {
             <div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t('Entrance ticket')}</p>
               <p className="text-[28px] font-medium"><span className="font-mono">{money(tour.entrance_fee_usd)}</span><span className="ml-1 text-[14px] text-ink">/ {t('person')}</span></p></div>
           ) : (
-            <div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t(usesGroupPricing(tour) ? 'From, group of 20+' : 'From')}</p>
+            <div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t(usesGroupPricing(tour) ? 'From, group of {n}+' : 'From', { n: top })}</p>
               <p className="text-[28px] font-medium"><PriceTag amount={tour.price_from_usd} percent={tour.effective_discount} /><span className="ml-1 text-[14px] text-ink">/ {t('person')}</span></p>
-              {usesGroupPricing(tour) && <p className="mt-1 text-[12.5px] text-ink">{t('Price for a group of 20 or more. Smaller groups pay a little more per person; you see the exact price for your group when you book.')}</p>}
+              {usesGroupPricing(tour) && <p className="mt-1 text-[12.5px] text-ink">{t('Price for a group of {n} or more. Smaller groups pay a little more per person; you see the exact price for your group when you book.', { n: top })}</p>}
               {tour.effective_discount > 0 && tour.promo_title && <p className="mt-1 text-[12.5px] text-destructive">{tour.promo_title}</p>}</div>
           )}
           {parent.data && (
@@ -237,7 +247,7 @@ export function TourDetail() {
               <Link to={`/tours/${parent.data.slug}`} className="btn-outline mt-3 !h-9 !px-4 text-[12px]">{t('View the full city tour')}</Link>
             </div>
           )}
-          <BookingForm serviceType="tour" serviceSlug={tour.slug} serviceTitle={tour.title} estimatedTotal={priceless ? 0 : discounted(tour.price_from_usd, tour.effective_discount)}
+          <BookingForm guideOptional={isLocal && tour.tour_type !== 'workshop'} serviceType="tour" serviceSlug={tour.slug} serviceTitle={tour.title} estimatedTotal={priceless ? 0 : discounted(tour.price_from_usd, tour.effective_discount)}
             groupPriced={usesGroupPricing(tour)} stayIncluded={(tour.itinerary?.length || 0) >= 2} hotels={priceless ? [] : hotels.data} defaultNights={Math.max(1, tour.itinerary?.length || 1)}
             extra={tour.itinerary?.length ? { details_summary: planText(tour) } : {}} onSubmitted={setBooked} />
           {!booked && <MobileBookBar price={priceless ? null : money(discounted(tour.price_from_usd, tour.effective_discount))} unit="person" />}
@@ -253,7 +263,7 @@ const HOTEL_FILTERS = [['all', 'All'], ['stars4', '4–5 star hotels'], ['hotel'
 const TYPE_LABEL = { hotel: 'Hotel', boutique: 'Boutique hotel', guesthouse: 'Guesthouse', hostel: 'Hostel' }
 const matchesKind = (h, key) => key === 'all' || (key === 'stars4' ? h.stars >= 4 : key === 'hotel' ? h.property_type === 'hotel' && h.stars < 4 : key === 'small' ? ['boutique', 'guesthouse'].includes(h.property_type) : h.property_type === 'hostel')
 const nightUnit = (h) => (h.price_basis === 'bed' ? 'bed per night' : 'night')
-const hotelPhotos = (h) => [h.image_url, ...(h.gallery || [])].filter(Boolean)
+const hotelPhotos = (h) => photosOf(h)
 const stars = (h) => (h.stars > 0 ? '★'.repeat(h.stars) : '')
 
 export function Hotels() {

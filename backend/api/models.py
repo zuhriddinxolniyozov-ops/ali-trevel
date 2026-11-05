@@ -1,9 +1,12 @@
 import datetime
 import secrets
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+from .market import current as current_market, default_market
 
 
 class Published(models.TextChoices):
@@ -13,7 +16,26 @@ class Published(models.TextChoices):
     ARCHIVED = "archived", "Archived"
 
 
-class Catalogued(models.Model):
+class MarketManager(models.Manager):
+    """Only the rows of the current market (global or local, see market.py)."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(market=current_market())
+
+
+class MarketScoped(models.Model):
+    """A row that belongs to the global site (dollars) or the local one (so'm). ``objects`` sees the current market only;
+    ``everywhere`` sees both (for copying and maintenance)."""
+
+    market = models.CharField(max_length=6, default=default_market, db_index=True)
+    objects = MarketManager()
+    everywhere = models.Manager()
+
+    class Meta:
+        abstract = True
+
+
+class Catalogued(MarketScoped):
     """Shared by every public listing: a publishing status and per-language overrides.
 
     ``i18n`` maps a language code to the translated fields, e.g. ``{"uz": {"title": "…"}}``.
@@ -22,6 +44,10 @@ class Catalogued(models.Model):
 
     status = models.CharField(max_length=12, choices=Published.choices, default=Published.PUBLISHED)
     i18n = models.JSONField(default=dict, blank=True)
+    # Local copies only: while ``price_auto`` is on, the so'm prices follow the Central Bank rate from the dollar prices kept in
+    # ``price_source``; an admin who types a price in so'm switches it off for that listing.
+    price_auto = models.BooleanField(default=False)
+    price_source = models.JSONField(default=dict, blank=True)
 
     class Meta:
         abstract = True
@@ -36,7 +62,7 @@ class Discountable(models.Model):
         abstract = True
 
 
-class SiteText(models.Model):
+class SiteText(MarketScoped):
     """Admin override for one piece of interface copy in one language (key is the English text)."""
 
     lang = models.CharField(max_length=5)
@@ -44,13 +70,17 @@ class SiteText(models.Model):
     value = models.TextField()
 
     class Meta:
-        unique_together = ("lang", "key")
+        unique_together = ("market", "lang", "key")
 
 
 def default_group_tiers():
-    """Price per person as a percentage of the listed price, by group size. The listed ("from") price is for 20 or more travelers."""
-    return [{"min": 20, "percent": 100}, {"min": 15, "percent": 105}, {"min": 10, "percent": 115}, {"min": 6, "percent": 130},
-            {"min": 4, "percent": 150}, {"min": 2, "percent": 180}, {"min": 1, "percent": 220}]
+    """Price per person as a percentage of the listed price, by group size. The listed ("from") price is for 14 or more travelers.
+
+    For the 2-day Samarkand tour ($209) the rows give exactly $209 (14+), $249 (11-13), $267 (7-10), $289 (3-6) and $294 (1-2);
+    every other tour follows the same proportions.
+    """
+    return [{"min": 14, "percent": 100}, {"min": 11, "percent": 119.138756}, {"min": 7, "percent": 127.751196},
+            {"min": 3, "percent": 138.277512}, {"min": 1, "percent": 140.669856}]
 
 
 def default_map_cities():
@@ -64,8 +94,8 @@ def default_cost_rates():
             "hotel_cost_percent": 80, "transport_cost_percent": 75, "other_cost_percent": 70}
 
 
-class SiteContent(models.Model):
-    """Single-row site settings and editable homepage copy."""
+class SiteContent(MarketScoped):
+    """Site settings and editable homepage copy: one row per market."""
 
     hero_eyebrow = models.CharField(max_length=200, blank=True)
     hero_title = models.CharField(max_length=200, blank=True)
@@ -85,15 +115,27 @@ class SiteContent(models.Model):
     extra_contacts = models.JSONField(default=list, blank=True)  # more lines for the footer and contact page: [{"label", "value", "url"}]
     cost_rates = models.JSONField(default=default_cost_rates, blank=True)  # see default_cost_rates
     map_cities = models.JSONField(default=default_map_cities, blank=True)  # {city key: {"green": bool, "target": "" or "/tours/<slug>"}} for the home page map
+    # Local site: the Central Bank's dollar rate (so'm for 1 USD) used for its prices, and the day it was read.
+    usd_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    usd_rate_date = models.DateField(null=True, blank=True)
+    # Local site: a traveller's so'm price = dollar price x this factor x the dollar rate (0.7 = 30% below the dollar price).
+    local_price_factor = models.DecimalField(max_digits=7, decimal_places=5, default=Decimal("0.70000"))
+
+    @classmethod
+    def current(cls):
+        """The settings row of the current market (created on first use)."""
+        row = cls.objects.order_by("pk").first()
+        return row or cls.objects.create()
 
 
 class Destination(Catalogued):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     name = models.CharField(max_length=120)
     region = models.CharField(max_length=120)
     summary = models.TextField()
     description = models.TextField(blank=True)
     image_url = models.CharField(max_length=500, blank=True)  # absolute link or an uploaded /media/ path
+    gallery = models.JSONField(default=list, blank=True)  # more photos after the cover (image_url); shown as a slider
     suggested_duration = models.CharField(max_length=60)
     highlights = models.JSONField(default=list, blank=True)
     activities = models.JSONField(default=list, blank=True)
@@ -102,23 +144,26 @@ class Destination(Catalogued):
 
     class Meta:
         ordering = ["order", "name"]
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="destination_market_slug")]
 
     def __str__(self):
         return self.name
 
 
 class Tour(Catalogued, Discountable):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     title = models.CharField(max_length=200)
     destination_slug = models.SlugField(blank=True)
     destination_name = models.CharField(max_length=120)
     category = models.CharField(max_length=80)
+    multi_city = models.BooleanField(default=False)  # also listed under the "Multi-city" filter of the Tours page
     duration_label = models.CharField(max_length=60)
     group_type = models.CharField(max_length=60)
     summary = models.TextField()
     description = models.TextField(blank=True)
     image_url = models.CharField(max_length=500, blank=True)  # absolute link or an uploaded /media/ path
-    price_from_usd = models.DecimalField(max_digits=8, decimal_places=2)
+    gallery = models.JSONField(default=list, blank=True)  # more photos after the cover (image_url); shown as a slider
+    price_from_usd = models.DecimalField(max_digits=14, decimal_places=2)
     currency = models.CharField(max_length=3, default="USD")
     rating = models.DecimalField(max_digits=2, decimal_places=1, default=4.8)
     review_count = models.PositiveIntegerField(default=0)
@@ -133,7 +178,7 @@ class Tour(Catalogued, Discountable):
     excluded = models.JSONField(default=list, blank=True)
     # Practical details shown in the "Tour details" panel.
     tour_type = models.CharField(max_length=20, blank=True)  # car | walking | mixed | train | workshop
-    group_pricing = models.BooleanField(default=True)  # the listed price is for 20+ travelers; smaller groups pay more per person
+    group_pricing = models.BooleanField(default=True)  # the listed price is for the biggest group of the table; smaller groups pay more per person
     max_travelers = models.PositiveSmallIntegerField(null=True, blank=True)
     languages = models.JSONField(default=list, blank=True)  # guide languages, e.g. ["English", "Russian"]
     transport_included = models.BooleanField(default=False)
@@ -144,7 +189,7 @@ class Tour(Catalogued, Discountable):
     # One stop per line as "Name | entrance fee in USD" (the fee is optional). Translatable like any other list.
     route = models.JSONField(default=list, blank=True)
     # For a single historical place that is also part of a bigger tour: its entrance ticket and the parent tour.
-    entrance_fee_usd = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    entrance_fee_usd = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     parent_slug = models.SlugField(blank=True)
     featured = models.BooleanField(default=False)
     is_demo = models.BooleanField(default=True)
@@ -156,13 +201,14 @@ class Tour(Catalogued, Discountable):
 
     class Meta:
         ordering = ["-featured", "-created"]
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="tour_market_slug")]
 
     def __str__(self):
         return self.title
 
 
 class Hotel(Catalogued, Discountable):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     name = models.CharField(max_length=160)
     destination_slug = models.SlugField(blank=True)
     destination_name = models.CharField(max_length=120)
@@ -170,7 +216,7 @@ class Hotel(Catalogued, Discountable):
     summary = models.TextField()
     description = models.TextField(blank=True)
     image_url = models.CharField(max_length=500, blank=True)  # absolute link or an uploaded /media/ path
-    price_from_usd = models.DecimalField(max_digits=8, decimal_places=2)
+    price_from_usd = models.DecimalField(max_digits=14, decimal_places=2)
     amenities = models.JSONField(default=list, blank=True)
     rating = models.DecimalField(max_digits=2, decimal_places=1, default=4.6)
     is_demo = models.BooleanField(default=True)
@@ -181,39 +227,48 @@ class Hotel(Catalogued, Discountable):
     price_basis = models.CharField(max_length=6, choices=PRICE_BASES, default="room")  # hostels are priced per dorm bed
     photos_illustrative = models.BooleanField(default=False)  # the photos show the destination, not this property itself
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="hotel_market_slug")]
+
     def __str__(self):
         return self.name
 
 
 class FoodExperience(Catalogued):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     name = models.CharField(max_length=160)
     destination_name = models.CharField(max_length=120, blank=True)
     summary = models.TextField()
     image_url = models.CharField(max_length=500, blank=True)  # absolute link or an uploaded /media/ path
     kind = models.CharField(max_length=60, default="Dish")
-    price_from_usd = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    price_from_usd = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="food_market_slug")]
 
     def __str__(self):
         return self.name
 
 
 class TransportOption(Catalogued, Discountable):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     name = models.CharField(max_length=160)
     vehicle = models.CharField(max_length=120)
     capacity = models.PositiveSmallIntegerField(default=3)
     included_passengers = models.PositiveSmallIntegerField(default=3)
     summary = models.TextField(blank=True)
     image_url = models.CharField(max_length=500, blank=True)  # absolute link or an uploaded /media/ path
-    base_price_usd = models.DecimalField(max_digits=8, decimal_places=2)
-    extra_passenger_usd = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    base_price_usd = models.DecimalField(max_digits=14, decimal_places=2)
+    extra_passenger_usd = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="transport_market_slug")]
 
     def __str__(self):
         return self.name
 
 
-class BookingRequest(models.Model):
+class BookingRequest(MarketScoped):
     STATUS = [
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
@@ -233,10 +288,10 @@ class BookingRequest(models.Model):
     guests = models.PositiveSmallIntegerField(default=1)
     details_summary = models.TextField(blank=True)
     special_requests = models.TextField(blank=True)
-    estimated_total_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    estimated_total_usd = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     # Accounting: the price agreed with the traveller (falls back to the estimate) and any discount.
-    final_price_usd = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    discount_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    final_price_usd = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    discount_usd = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     status = models.CharField(max_length=12, choices=STATUS, default="pending")
     admin_notes = models.TextField(blank=True)
     lang = models.CharField(max_length=5, blank=True)  # the language the traveller was reading, for e-mails
@@ -246,6 +301,10 @@ class BookingRequest(models.Model):
     arrival_time = models.TimeField(null=True, blank=True)
     arrival_flight = models.CharField(max_length=60, blank=True)  # flight or train number
     arrival_note = models.CharField(max_length=300, blank=True)  # free text, e.g. typed in the Telegram bot
+    # Local site: travellers are already in Uzbekistan, so instead of the airport they say where the team meets them
+    # (arrival_date and arrival_time then hold the day and time of that meeting).
+    meeting_place = models.CharField(max_length=200, blank=True)
+    wants_guide = models.BooleanField(default=False)  # local site: the guide is not in the price; the traveller asked for one (extra payment)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -257,7 +316,7 @@ class BookingRequest(models.Model):
         super().save(*args, **kwargs)
 
 
-class ContactMessage(models.Model):
+class ContactMessage(MarketScoped):
     STATUS = [("new", "New"), ("read", "Read"), ("replied", "Replied")]
     full_name = models.CharField(max_length=160)
     email = models.EmailField()
@@ -291,7 +350,7 @@ class SavedItem(models.Model):
         ordering = ["-created"]
 
 
-class Partner(models.Model):
+class Partner(MarketScoped):
     STATUS = [("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")]
     user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     business_name = models.CharField(max_length=200)
@@ -314,7 +373,7 @@ class Payment(models.Model):
 
     METHODS = [("cash", "Cash"), ("card", "Card"), ("transfer", "Bank transfer"), ("other", "Other")]
     booking = models.ForeignKey(BookingRequest, related_name="payments", on_delete=models.CASCADE)
-    amount_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    amount_usd = models.DecimalField(max_digits=16, decimal_places=2)
     method = models.CharField(max_length=10, choices=METHODS, default="cash")
     paid_on = models.DateField(default=datetime.date.today)
     note = models.CharField(max_length=200, blank=True)
@@ -324,7 +383,7 @@ class Payment(models.Model):
         ordering = ["paid_on", "id"]
 
 
-class Expense(models.Model):
+class Expense(MarketScoped):
     """Money spent to deliver a tour, or a general business expense when ``booking`` is empty."""
 
     CATEGORIES = [
@@ -334,7 +393,7 @@ class Expense(models.Model):
     booking = models.ForeignKey(BookingRequest, null=True, blank=True, related_name="expenses", on_delete=models.CASCADE)
     category = models.CharField(max_length=12, choices=CATEGORIES, default="other")
     description = models.CharField(max_length=200)
-    amount_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    amount_usd = models.DecimalField(max_digits=16, decimal_places=2)
     spent_on = models.DateField(default=datetime.date.today)
     paid_to = models.CharField(max_length=160, blank=True)
     auto = models.BooleanField(default=False)  # created from the tour's cost template
@@ -344,7 +403,7 @@ class Expense(models.Model):
         ordering = ["-spent_on", "-id"]
 
 
-class Promotion(models.Model):
+class Promotion(MarketScoped):
     """A campaign such as "20% off all tours". While active it shows as a banner and discounts matching prices."""
 
     APPLIES = [("all", "Everything"), ("tours", "Tours"), ("hotels", "Hotels"), ("transport", "Transport")]
@@ -376,20 +435,23 @@ class Promotion(models.Model):
         return self.active and (not self.starts_on or self.starts_on <= today) and (not self.ends_on or self.ends_on >= today)
 
 
-class LegalPage(models.Model):
+class LegalPage(MarketScoped):
     """Privacy policy, terms or cancellation policy. ``body`` uses a tiny markup: ## heading, - bullet, 1. step, **bold**, [text](url)."""
 
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField()
     title = models.CharField(max_length=160)
     body = models.TextField()
     updated = models.DateField(default=datetime.date.today)
     i18n = models.JSONField(default=dict, blank=True)  # {"uz": {"title": "...", "body": "..."}}
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["market", "slug"], name="legal_market_slug")]
+
     def __str__(self):
         return self.title
 
 
-class Review(models.Model):
+class Review(MarketScoped):
     """A traveller's review of a tour. Shown on the site only after an admin publishes it; reviews whose booking reference and
     email match a confirmed or completed booking are marked as verified travellers."""
 

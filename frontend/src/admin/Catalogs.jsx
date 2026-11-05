@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { Archive, Copy, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react'
+import { Archive, Copy, MapPin, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import { money, useFetch } from '../hooks'
 import { useT } from '../i18n'
@@ -60,6 +60,7 @@ export function AdminTours() {
                 <ActionButton icon={Pencil} onClick={() => setEditing(x)}>{t('Edit')}</ActionButton>
                 <ActionButton onClick={() => patch(x, { status: x.status === 'published' ? 'draft' : 'published' })}>{x.status === 'published' ? t('Unpublish') : t('Publish')}</ActionButton>
                 <ActionButton icon={Star} onClick={() => patch(x, { featured: !x.featured })}>{x.featured ? t('Unfeature') : t('Feature')}</ActionButton>
+                {!x.parent_slug && <ActionButton icon={MapPin} onClick={() => patch(x, { multi_city: !x.multi_city })}>{x.multi_city ? t('Remove from Multi-city') : t('Add to Multi-city')}</ActionButton>}
                 <ActionButton icon={Copy} onClick={() => duplicate(x)}>{t('Duplicate')}</ActionButton>
                 {x.status !== 'archived' && <ActionButton icon={Archive} onClick={() => patch(x, { status: 'archived', featured: false })}>{t('Archive')}</ActionButton>}
                 <ActionButton icon={Trash2} danger onClick={() => remove(x)}>{t('Delete')}</ActionButton>

@@ -118,7 +118,7 @@ server {
     location = /robots.txt  { proxy_pass http://127.0.0.1:8000; proxy_set_header Host \$http_host; proxy_set_header X-Forwarded-Proto \$scheme; }
     location /media/        { alias ${APP}/backend/media/; expires 30d; add_header Cache-Control "public"; }
     location /assets/       { expires 365d; add_header Cache-Control "public, immutable"; }
-    location /              { try_files \$uri /index.html; }
+    location /              { try_files \$uri /index.html; add_header Cache-Control "no-cache"; }   # the page itself is checked on every visit, so a new version shows at once
 }
 NGINX
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true

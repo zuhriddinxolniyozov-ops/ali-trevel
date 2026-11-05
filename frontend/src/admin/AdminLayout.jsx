@@ -5,6 +5,8 @@ import { api } from '../api'
 import { useAuth } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
 import LogoMark from '../components/LogoMark'
+import MarketSwitch from '../components/MarketSwitch'
+import { isLocal } from '../market'
 
 const NAV = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutGrid },
@@ -130,6 +132,7 @@ export default function AdminLayout() {
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <SectionSearch />
+            <MarketSwitch size="sm" />
             <AdminLanguage />
             <Link to="/admin/bookings" aria-label={`${alerts} ${t('items need attention')}`} className="relative grid h-11 w-11 place-items-center rounded-full border border-navy/10 bg-white hover:bg-sand-soft">
               <Bell className="h-[18px] w-[18px]" />{alerts > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-turquoise px-1 text-[10px] font-medium">{alerts}</span>}
@@ -150,6 +153,7 @@ export default function AdminLayout() {
             </div>
           </div>
         </header>
+        {isLocal && <p className="shrink-0 border-b border-[#16a34a]/30 bg-[#f0fdf4] px-5 py-2 text-[13px] text-[#15803d] lg:px-8">🇺🇿 {t('You are editing the local site: its own tours, bookings and settings, prices in so\'m. The global site is not changed.')}</p>}
         <main className={pathname.startsWith('/admin/site') ? 'min-h-0 flex-1 overflow-hidden' : 'min-h-0 flex-1 overflow-y-auto px-5 py-8 lg:px-8'}><Outlet context={{ stats, refreshStats }} /></main>
       </div>
     </div>

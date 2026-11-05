@@ -13,6 +13,7 @@ import re
 
 from django.conf import settings
 
+from .market import use as use_market
 from . import models, notifications
 from . import telegram_tour as tour_view
 from .serializers import effective_discount
@@ -138,6 +139,14 @@ def parse_date(value):
     return day if kind == "ok" else None
 
 
+def biggest_group(tiers=None):
+    """The group size the listed price is for: the first row of the group pricing table (e.g. 14)."""
+    if tiers is None:
+        content = models.SiteContent.current()
+        tiers = content.group_pricing_tiers if content else None
+    return max(t["min"] for t in (tiers or models.default_group_tiers()))
+
+
 def tier_percent(tiers, guests):
     ordered = sorted(tiers or models.default_group_tiers(), key=lambda t: -t["min"])
     return next((t["percent"] for t in ordered if guests >= t["min"]), ordered[-1]["percent"])
@@ -148,14 +157,14 @@ def per_person(tour, guests, lang, cache):
     percent, _ = effective_discount(tour, cache, lang)
     price = float(tour.price_from_usd) * (100 - percent) / 100
     if tour.group_pricing:
-        content = models.SiteContent.objects.filter(pk=1).first()
+        content = models.SiteContent.current()
         price *= tier_percent(content.group_pricing_tiers if content else None, guests) / 100
     return round(price, 2)
 
 
 def social_rows(per_row=2):
     """Link buttons to the company's Instagram, YouTube, Telegram and Facebook (from Contact & settings); only real https links."""
-    content = models.SiteContent.objects.filter(pk=1).first()
+    content = models.SiteContent.current()
     if not content:
         return []
     links = [(label, url) for label, url in (("📸 Instagram", content.instagram_url), ("▶️ YouTube", content.youtube_url),
@@ -521,14 +530,15 @@ class Bot:
         if not is_team(user):
             return
         _, answer, ref = data.split(":", 2)
-        booking = models.BookingRequest.objects.filter(reference=ref).first()
+        booking = models.BookingRequest.everywhere.filter(reference=ref).first()   # a booking of the global or the local site
         if not booking:
             return self.send(chat, tx("bk_missing", lang))
         if booking.status != "pending":
             return self.send(chat, tx("bk_already", lang, ref=ref, status=booking.status))
-        booking.status = "confirmed" if answer == "ok" else "cancelled"
-        booking.save(update_fields=["status"])
-        notifications.booking_status_changed(booking)
+        with use_market(booking.market):   # costs added on confirmation use that site's tours, rates and currency
+            booking.status = "confirmed" if answer == "ok" else "cancelled"
+            booking.save(update_fields=["status"])
+            notifications.booking_status_changed(booking)
         try:  # take the buttons away so the answer cannot be given twice
             self.call("editMessageReplyMarkup", {"chat_id": chat, "message_id": query["message"]["message_id"], "reply_markup": {"inline_keyboard": []}})
         except Exception:
@@ -583,7 +593,7 @@ class Bot:
         if float(tour.price_from_usd) > 0:
             lines.append(f"💵 {esc(tx('from', lang))} {price_html(tour, lang, cache)} {esc(tx('per_person', lang))}")
             if tour.group_pricing:
-                lines.append(f"<i>{esc(tx('group_note', lang))}</i>")
+                lines.append(f"<i>{esc(tx('group_note', lang).replace('{n}', str(biggest_group())))}</i>")
         elif tour.entrance_fee_usd:
             lines.append(f"🎫 {money(tour.entrance_fee_usd)}")
         highlights = loc(tour, "highlights", lang)
@@ -625,7 +635,7 @@ class Bot:
             if len(pins) > 1:
                 rows.append([{"text": tour_view.lab("whole_route", lang), "url": tour_view.route_url(pins)}])
         else:
-            content = models.SiteContent.objects.filter(pk=1).first()
+            content = models.SiteContent.current()
             tiers = (content.group_pricing_tiers if content else None) or models.default_group_tiers()
             body = tour_view.group_text(tour, lang, lambda guests: per_person(tour, guests, lang, cache), tiers)
             if float(tour.price_from_usd) > 0:
@@ -633,13 +643,13 @@ class Bot:
         self.send(chat, body, rows=rows + [back, self.back_row(lang)])
 
     def show_prices(self, chat, lang):
-        content = models.SiteContent.objects.filter(pk=1).first()
+        content = models.SiteContent.current()
         tiers = sorted((content.group_pricing_tiers if content else None) or models.default_group_tiers(), key=lambda t: -t["min"])
-        lines = [tx("prices_head", lang), ""]
+        lines = [tx("prices_head", lang).replace("{n}", str(tiers[0]["min"] if tiers else biggest_group())), ""]
         for index, tier in enumerate(tiers):
             low = tier["min"]
             label = f"{low}+" if index == 0 else (str(low) if low == tiers[index - 1]["min"] - 1 else f"{low}–{tiers[index - 1]['min'] - 1}")
-            lines.append(f"• {label} {tx('travelers', lang)} — {tier['percent']}%")
+            lines.append(f"• {label} {tx('travelers', lang)} — {float(tier['percent']):.0f}%")
         lines += ["", tx("prices_tail", lang)]
         self.send(chat, "\n".join(lines), rows=[self.back_row(lang)])
 
@@ -648,7 +658,7 @@ class Bot:
         self.send(chat, body, rows=[self.back_row(lang)])
 
     def show_contact(self, chat, lang):
-        content = models.SiteContent.objects.filter(pk=1).first()
+        content = models.SiteContent.current()
         lines = [tx("contact_head", lang)]
         if content:
             for value in (content.phone_primary, content.phone_secondary):

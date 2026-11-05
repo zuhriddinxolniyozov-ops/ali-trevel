@@ -3,6 +3,7 @@ import { api } from '../api'
 import { useSettings } from '../hooks'
 import { useT } from '../i18n'
 import { EMAIL_RE, Field, Honeypot, PageHero, Spinner, Success } from '../components/ui'
+import PhoneInput from '../components/PhoneInput'
 import Seo from '../components/Seo'
 import { ExtraContacts, Phones, Socials } from '../components/Layout'
 import { IMAGES } from '../data'
@@ -59,7 +60,7 @@ export function Contact() {
             <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
-              <Field label="Phone"><input type="tel" className="input" value={f.phone} onChange={set('phone')} /></Field></div>
+              <Field label="Phone"><PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} /></Field></div>
             <Field label="Subject"><input className="input" value={f.subject} onChange={set('subject')} /></Field>
             <Field label="Message" error={errors.message}><textarea rows={5} className="input" value={f.message} onChange={set('message')} /></Field>
             {state === 'error' && <p role="alert" className="text-[12px] text-destructive">{t('We could not send your message. Please try again.')}</p>}

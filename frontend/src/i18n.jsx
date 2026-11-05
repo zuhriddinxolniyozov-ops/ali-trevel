@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { STRINGS } from './strings'
+import { localCurrencyText } from './market'
 
 export const LANGS = [
   { code: 'en', label: 'English' },
@@ -46,7 +47,7 @@ export function I18nProvider({ children }) {
   const value = useMemo(() => {
     // Placeholders like {city} are filled from `params` after the lookup, so word order can differ per language.
     const fill = (text, params) => (params ? text.replace(/\{(\w+)\}/g, (m, k) => (k in params ? params[k] : m)) : text)
-    const t = (key, params) => {
+    const lookup = (key, params) => {
       if (lang !== 'en') {
         const own = overrides[lang]?.[key] || STRINGS[key]?.[COLUMN[lang]]
         if (own) return fill(own, params)
@@ -54,6 +55,7 @@ export function I18nProvider({ children }) {
       }
       return fill(overrides.en?.[key] || key, params)
     }
+    const t = (key, params) => localCurrencyText(lookup(key, params), lang)
     // Photos that admins replaced in the site editor are stored as overrides keyed by the original URL.
     const img = (url) => overrides.en?.[`image:${url}`] || url
     return { t, lang, setLang, overrides, refresh, img }

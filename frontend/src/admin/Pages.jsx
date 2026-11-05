@@ -96,7 +96,8 @@ export function Bookings() {
             {open === b.id && (
               <div className="mt-4 grid gap-4 rounded-sm bg-sand-soft/50 p-4 text-[14px] md:grid-cols-2">
                 <div className="space-y-1"><p><a className="text-turquoise-deep" href={`mailto:${b.email}`}>{b.email}</a> · <a className="text-turquoise-deep" href={`tel:${b.phone}`}>{b.phone}</a></p>
-                  {(b.arrival_date || b.arrival_note) && <p className="font-medium text-navy">✈ {t('Arrives at Samarkand airport')}: {[b.arrival_date, b.arrival_time?.slice(0, 5), b.arrival_flight, b.arrival_note].filter(Boolean).join(' · ')}</p>}{b.details_summary && <p className="text-ink">{b.details_summary}</p>}{b.special_requests && <p className="whitespace-pre-wrap text-ink">{b.special_requests}</p>}</div>
+                  {b.meeting_place ? <p className="font-medium text-navy">📍 {t('Meeting')}: {[b.arrival_date, b.arrival_time?.slice(0, 5), b.meeting_place].filter(Boolean).join(' · ')}</p>
+                    : (b.arrival_date || b.arrival_note) && <p className="font-medium text-navy">✈ {t('Arrives at Samarkand airport')}: {[b.arrival_date, b.arrival_time?.slice(0, 5), b.arrival_flight, b.arrival_note].filter(Boolean).join(' · ')}</p>}{b.details_summary && <p className="text-ink">{b.details_summary}</p>}{b.special_requests && <p className="whitespace-pre-wrap text-ink">{b.special_requests}</p>}</div>
                 <div><label className="label">{t('Internal notes')}<textarea rows={3} className="input" value={notes[b.id] ?? b.admin_notes} onChange={(e) => setNotes({ ...notes, [b.id]: e.target.value })} /></label>
                   <button className="btn-outline mt-2 !h-9" onClick={() => update(b, { admin_notes: notes[b.id] ?? b.admin_notes })}>{t('Save notes')}</button>
                   {b.status === 'completed' && <button className="btn-primary mt-2 ml-2 !h-9" onClick={() => nav('/admin/accounting')}>{t('Open in Accounting')}</button>}</div>

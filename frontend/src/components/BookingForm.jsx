@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CircleCheck } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, useAuth, useSettings } from '../hooks'
 import { groupPercent } from '../groupPricing'
+import { roundPrice } from '../market'
 import { useT } from '../i18n'
 import ArrivalForm from './ArrivalForm'
 import GroupPrice from './GroupPrice'
 import { EMAIL_RE, Field, Honeypot, PHONE_RE, Photo, Spinner, Success } from './ui'
+import PhoneInput from './PhoneInput'
 
 const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new Date(from)) / 864e5) : 0)
 
@@ -17,15 +20,15 @@ const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new
  * With `groupPriced` that price is for a group of 20 or more and smaller groups pay more per person (tiers from the admin panel);
  * `priceFor(guests, tiers)` replaces the per-person calculation, used when several tours are booked together.
  */
-export default function BookingForm({ serviceType, serviceSlug = '', serviceTitle, estimatedTotal = 0, perGuest = true, extra = {}, intro, onSubmitted, hotels = [], defaultNights = 1, mode = 'standard', groupPriced = false, priceFor = null, unit = 'room', stayIncluded = false }) {
+export default function BookingForm({ serviceType, serviceSlug = '', serviceTitle, estimatedTotal = 0, perGuest = true, extra = {}, intro, onSubmitted, hotels = [], defaultNights = 1, mode = 'standard', groupPriced = false, priceFor = null, unit = 'room', stayIncluded = false, guideOptional = false }) {
   const t = useT()
   const { user } = useAuth()
   const { settings } = useSettings()
   const isStay = mode === 'hotel'
   const tiers = settings.group_pricing_tiers
   const grouped = (groupPriced || !!priceFor) && !isStay
-  const perPersonAt = (g) => (priceFor ? priceFor(g, tiers) : estimatedTotal * (groupPriced ? groupPercent(tiers, g) / 100 : 1))
-  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights, website: '', hotel_class: '', car_class: '' })
+  const perPersonAt = (g) => (priceFor ? priceFor(g, tiers) : roundPrice(estimatedTotal * (groupPriced ? groupPercent(tiers, g) / 100 : 1)))
+  const [f, setF] = useState({ full_name: user?.full_name || '', email: user?.email || '', phone: '', travel_date: '', end_date: '', guests: 2, rooms: 1, special_requests: '', hotel: '', nights: defaultNights, website: '', hotel_class: '', car_class: '', wants_guide: false })
   const [errors, setErrors] = useState({})
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')
@@ -53,7 +56,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     const err = {}
     if (f.full_name.trim().length < 2) err.full_name = 'Please tell us your name.'
     if (!EMAIL_RE.test(f.email.trim())) err.email = 'A valid email is required.'
-    if (!PHONE_RE.test(f.phone.trim())) err.phone = 'Include your country code, e.g. +998 90 123 45 67.'
+    if (!PHONE_RE.test(f.phone.trim())) err.phone = 'Please enter your phone number.'
     if (!f.travel_date) err.travel_date = isStay ? 'Choose your check-in date.' : 'Choose a date.'
     if (isStay && f.travel_date && money.nights < 1) err.end_date = 'Check-out must be after check-in.'
     setErrors(err)
@@ -63,13 +66,14 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     if (isStay) lines.push(`Stay: ${money.nights} night(s) · ${f.rooms} ${beds ? 'bed(s)' : 'room(s)'}`)
     if (grouped) lines.push(`Group price: ${exactMoney(perPersonAt(Number(f.guests) || 1))} per person for ${Number(f.guests) || 1} traveler(s)`)
     if (stayIncluded) lines.push(`Hotels: ${f.hotel_class ? `${f.hotel_class}-star hotels requested (extra payment applies)` : 'the most affordable hotels, as in the price'}. Car: ${f.car_class ? 'premium class requested (extra payment applies)' : 'standard class, as in the price'}.`)
+    if (guideOptional) lines.push(f.wants_guide ? 'Guide: requested by the traveller (not in the price, extra payment applies)' : 'Guide: not requested (not in the price)')
     if (hotel) lines.push(`Hotel: ${hotel.name} · ${f.nights} night(s) · ${f.rooms} ${beds ? 'bed(s)' : 'room(s)'} · ${exactMoney(money.hotel)}`)
     try {
       const res = await api.post('/bookings-submit/', {
         service_type: serviceType, service_slug: serviceSlug, service_title: serviceTitle,
         full_name: f.full_name.trim(), email: f.email.trim(), phone: f.phone.trim(),
         travel_date: f.travel_date, end_date: f.end_date || null, guests: Number(f.guests) || 1,
-        website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, ...extra,
+        website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, wants_guide: guideOptional && f.wants_guide, ...extra,
         details_summary: [extra.details_summary, ...lines].filter(Boolean).join('\n\n'),
       })
       setReference(res.reference); setSent({ guests: Number(f.guests) || 1, perPerson: perPersonAt(Number(f.guests) || 1), total }); setState('done')
@@ -94,7 +98,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
         <Honeypot value={f.website} onChange={set('website')} />
         <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
         <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
-        <Field label="Phone / Telegram" error={errors.phone}><input type="tel" className="input" placeholder="+998 90 123 45 67" value={f.phone} onChange={set('phone')} /></Field>
+        <Field label="Phone" error={errors.phone}><PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} invalid={!!errors.phone} /></Field>
         {isStay ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -113,6 +117,17 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
           </div>
         )}
 
+        {guideOptional && (
+          <fieldset className="rounded-sm border border-navy/12 bg-white/70 p-3">
+            <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Guide')}</legend>
+            <p className="rounded-sm bg-gold/15 px-3 py-2 text-[12.5px] leading-snug text-navy">{t('The price does not include a guide. If you would like one, we add a guide for an extra payment.')}</p>
+            <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-[13.5px] font-normal text-navy">
+              <input type="checkbox" className="h-4 w-4 accent-navy" checked={f.wants_guide} onChange={(e) => setF((p) => ({ ...p, wants_guide: e.target.checked }))} />
+              {t('I would like a guide (extra payment)')}
+            </label>
+            {f.wants_guide && <p role="status" className="mt-3 flex gap-2 rounded-sm border border-[#16a34a]/30 bg-[#f0fdf4] px-3 py-2 text-[12.5px] leading-snug text-[#15803d]"><CircleCheck className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />{t('A guide will be added. Our team tells you the extra amount before anything is booked or charged.')}</p>}
+          </fieldset>
+        )}
         {stayIncluded && (
           <fieldset className="rounded-sm border border-navy/12 bg-white/70 p-3">
             <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Hotel and car class')}</legend>
@@ -127,7 +142,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
                 <option value="premium">{t('Premium-class taxi (extra payment)')}</option>
               </select></Field>
             </div>
-            {upgrade && <p role="status" className="mt-3 rounded-sm border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] leading-snug text-destructive">{t('Extra payment applies: you chose a higher class than the one in the price. Our team confirms the exact extra amount before anything is booked or charged.')}</p>}
+            {upgrade && <p role="status" className="mt-3 flex gap-2 rounded-sm border border-[#16a34a]/30 bg-[#f0fdf4] px-3 py-2 text-[12.5px] leading-snug text-[#15803d]"><CircleCheck className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />{t('Extra payment applies: you chose a higher class than the one in the price. Our team confirms the exact extra amount before anything is booked or charged.')}</p>}
           </fieldset>
         )}
         {!stayIncluded && hotels.length > 0 && (
@@ -159,7 +174,8 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
       {total > 0 && (
         <p className="mt-3 text-[12.5px] text-ink">{t('Estimated total')}: <span className="font-mono text-[15px] text-navy">{exactMoney(total)}</span>
           {money.hotel > 0 && <span className="block">{t('Tour')} {exactMoney(money.base)} + {t('Hotel')} {exactMoney(money.hotel)}</span>}
-          {upgrade && <span className="block text-destructive">{t('Without the extra payment for the higher class')}</span>}
+          {upgrade && <span className="block text-[#15803d]">{t('Without the extra payment for the higher class')}</span>}
+          {guideOptional && f.wants_guide && <span className="block text-[#15803d]">{t('Without the extra payment for the guide')}</span>}
           <span className="block">({t('sample rate, confirmed by our team')})</span></p>
       )}
       {grouped && total > 0 && <GroupPrice tiers={tiers} priceAt={perPersonAt} guests={f.guests} perPerson={perPersonAt(Number(f.guests) || 1)} total={money.base} />}

@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAuth, useFetch } from '../hooks'
 import { useT } from '../i18n'
 import { EMAIL_RE, EmptyState, Field, PageHero, PHONE_RE, Spinner, Success } from '../components/ui'
+import PhoneInput from '../components/PhoneInput'
 import { IMAGES } from '../data'
 import { StatusPill } from './Auth'
 
@@ -35,7 +36,7 @@ export function PartnerRegister() {
     if (f.business_name.trim().length < 2) err.business_name = 'Business name is required.'
     if (f.contact_name.trim().length < 2) err.contact_name = 'Contact name is required.'
     if (!EMAIL_RE.test(f.email)) err.email = 'A valid email is required.'
-    if (!PHONE_RE.test(f.phone)) err.phone = 'Include your country code.'
+    if (!PHONE_RE.test(f.phone)) err.phone = 'Please enter your phone number.'
     setErrors(err)
     if (Object.keys(err).length) return
     setState('saving')
@@ -50,7 +51,7 @@ export function PartnerRegister() {
           <Field label="Contact name" error={errors.contact_name}><input className="input" value={f.contact_name} onChange={set('contact_name')} /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
-            <Field label="Phone" error={errors.phone}><input type="tel" className="input" value={f.phone} onChange={set('phone')} /></Field></div>
+            <Field label="Phone" error={errors.phone}><PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} invalid={!!errors.phone} /></Field></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Type"><select className="input" value={f.partner_type} onChange={set('partner_type')}>{TYPES.map((x) => <option key={x} value={x}>{t(x)}</option>)}</select></Field>
             <Field label="City"><input className="input" value={f.city} onChange={set('city')} /></Field></div>

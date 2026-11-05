@@ -11,8 +11,9 @@ import { Photo } from './ui'
  *   to      optional link: a click on a photo (not a drag) opens it
  *   thumbs  show a row of small previews under the slider
  *   arrows  'hover' (visible on hover, always on phones) or 'always'
+ *   dots    show the dots under the photo (off where a caption sits there)
  */
-export default function Gallery({ images = [], alt = '', className = 'aspect-[4/3]', to, thumbs = false, arrows = 'hover', rounded = '' }) {
+export default function Gallery({ images = [], alt = '', className = 'aspect-[4/3]', to, thumbs = false, arrows = 'hover', rounded = '', dots = true }) {
   const t = useT()
   const list = images.filter(Boolean)
   const box = useRef(null)
@@ -45,14 +46,18 @@ export default function Gallery({ images = [], alt = '', className = 'aspect-[4/
     if (e.pointerType !== 'mouse' || e.button !== 0 || list.length < 2) return
     clickBlocked.current = false
     drag.current = { x: e.clientX, left: box.current.scrollLeft, moved: false }
-    setDragging(true)
-    try { box.current.setPointerCapture(e.pointerId) } catch { /* the drag still works without capture */ }
   }
   const onPointerMove = (e) => {
     const d = drag.current
     if (!d) return
     const dx = e.clientX - d.x
-    if (Math.abs(dx) > 5) d.moved = true
+    // the slider holds the mouse only once it really drags: a plain click must still reach the photo's link
+    if (Math.abs(dx) > 5 && !d.moved) {
+      d.moved = true
+      setDragging(true)
+      try { box.current.setPointerCapture(e.pointerId) } catch { /* the drag still works without capture */ }
+    }
+    if (!d.moved) return
     box.current.scrollLeft = d.left - dx
   }
   const onPointerUp = (e) => {
@@ -97,9 +102,9 @@ export default function Gallery({ images = [], alt = '', className = 'aspect-[4/
           <>
             <button type="button" aria-label={t('Previous photo')} disabled={index === 0} onClick={() => go(index - 1)} className={`${button} left-3 ${arrowTone}`}><ChevronLeft className="h-5 w-5" /></button>
             <button type="button" aria-label={t('Next photo')} disabled={index === list.length - 1} onClick={() => go(index + 1)} className={`${button} right-3 ${arrowTone}`}><ChevronRight className="h-5 w-5" /></button>
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1.5">
+            {dots && <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1.5">
               {list.map((_, i) => <span key={i} className={`h-1.5 rounded-full transition-all ${i === index ? 'w-4 bg-ivory' : 'w-1.5 bg-ivory/60'}`} />)}
-            </div>
+            </div>}
             <span className="pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-navy/60 px-2.5 py-1 font-mono text-[10px] text-ivory">{index + 1} / {list.length}</span>
           </>
         )}

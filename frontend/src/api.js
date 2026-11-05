@@ -1,3 +1,5 @@
+import { MARKET } from './market'
+
 const TOKEN_KEY = 'ali_travel_token'
 
 export const getToken = () => {
@@ -14,6 +16,7 @@ export const setResponseHook = (fn) => { responseHook = fn }
 function authHeaders() {
   const headers = {}
   try { headers['X-Lang'] = localStorage.getItem('ali-travel-locale') || 'en' } catch { /* storage unavailable */ }
+  headers['X-Market'] = MARKET
   const token = getToken()
   if (token) headers.Authorization = `Token ${token}`
   return headers

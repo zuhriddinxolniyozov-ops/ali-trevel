@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isLocal, som } from '../market'
 import { Download, FileText, Plus, Printer, Trash2, Wand2 } from 'lucide-react'
 import { api } from '../api'
 import { useFetch } from '../hooks'
@@ -7,7 +8,7 @@ import { Spinner } from '../components/ui'
 import { printSection } from '../components/DayPlan'
 import { cap } from '../pages/Auth'
 
-const usd = (v) => `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const usd = (v) => (isLocal ? som(v) : `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const today = () => ymd(new Date())
 const CATEGORIES = ['guide', 'transport', 'meals', 'hotel', 'tickets', 'marketing', 'office', 'other']

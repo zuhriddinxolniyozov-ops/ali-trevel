@@ -21,7 +21,7 @@ export default function Credits() {
   const hotels = useFetch('/hotels/', { list: true })
   const credits = useMemo(() => {
     const seen = new Map()
-    ;[...places.data.map((d) => [d.name, d.image_url]), ...tours.data.map((x) => [x.title, x.image_url]), ...hotels.data.flatMap((h) => [h.image_url, ...(h.gallery || [])].map((url) => [`${t('Hotel photos')} · ${h.destination_name}`, url]))].forEach(([name, url]) => {
+    ;[...places.data.map((d) => [d.name, d.image_url]), ...tours.data.flatMap((x) => [x.image_url, ...(x.gallery || [])].map((url) => [x.title, url])), ...hotels.data.flatMap((h) => [h.image_url, ...(h.gallery || [])].map((url) => [`${t('Hotel photos')} · ${h.destination_name}`, url]))].forEach(([name, url]) => {
       const file = commonsFile(url)
       if (file && !seen.has(file)) seen.set(file, name)
     })

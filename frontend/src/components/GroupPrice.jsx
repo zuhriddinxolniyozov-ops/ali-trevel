@@ -1,6 +1,6 @@
 import { Users } from 'lucide-react'
 import { exactMoney } from '../hooks'
-import { tierRanges } from '../groupPricing'
+import { biggestGroup, tierRanges } from '../groupPricing'
 import { useT } from '../i18n'
 
 const rangeLabel = (t, r) => {
@@ -34,7 +34,7 @@ export default function GroupPrice({ tiers, priceAt, guests, perPerson, total })
         })}
       </ul>
       <p className="mt-3 text-[12.5px] font-medium text-navy">{t('Why does the price per person change?')}</p>
-      <p className="mt-1 text-[12.5px] leading-relaxed text-ink">{t('A guide, a vehicle, fuel and the organisation of a tour cost the same whether 2 people travel or 20. In a big group these fixed costs are shared by many travellers, so each person pays less; in a small group fewer people share them, so each person pays more. That is why our listed prices are for a group of 20 or more, and smaller groups pay a little more per person. You always see your exact price here before you send the request, and nothing is charged until our team confirms.')}</p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-ink">{t('A guide, a vehicle, fuel and the organisation of a tour cost the same whether 2 people travel or 20. In a big group these fixed costs are shared by many travellers, so each person pays less; in a small group fewer people share them, so each person pays more. That is why our listed prices are for a group of {n} or more, and smaller groups pay a little more per person. You always see your exact price here before you send the request, and nothing is charged until our team confirms.', { n: biggestGroup(tiers) })}</p>
     </div>
   )
 }

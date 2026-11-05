@@ -405,7 +405,7 @@ class Command(BaseCommand):
                 dest.save(update_fields=["activities"])
         for i, (slug, title, dslug, dname, cat, dur, group, summary, image, price, rating, reviews) in enumerate(TOURS):
             models.Tour.objects.update_or_create(slug=slug, defaults=dict(
-                title=title, destination_slug=dslug, destination_name=dname, category=cat,
+                title=title, destination_slug=dslug, destination_name=dname, category=cat, multi_city=cat == "Multi-city",
                 duration_label=dur, group_type=group, summary=summary, description=summary,
                 image_url=img(image), price_from_usd=price, rating=rating, review_count=reviews,
                 featured=i < 3, included=["Licensed local guide", "Private transport", "Bottled water"],

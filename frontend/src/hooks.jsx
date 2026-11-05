@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 import { api, getToken, setToken } from './api'
 import { useI18n } from './i18n'
 import { useEdit } from './edit/context'
+import { isLocal, roundPrice, som } from './market'
 
 /* ---------- data loading ---------- */
 export function useFetch(path, { list = false } = {}) {
@@ -87,15 +88,17 @@ export function Reveal({ children, delay = 0, className = '', as: Tag = 'div' })
 
 /* ---------- currency ---------- */
 /** A price with `percent` taken off, rounded to cents. */
-export const discounted = (amount, percent) => Math.round(Number(amount || 0) * (100 - (Number(percent) || 0))) / 100
-/** $289 or $231.20: cents only when there are some. */
+export const discounted = (amount, percent) => roundPrice(Number(amount || 0) * (100 - (Number(percent) || 0)) / 100)
+/** $289 or $231.20 (cents only when there are some); 1 746 000 so'm on the local site. */
 export const exactMoney = (value) => {
   const n = Number(value || 0)
+  if (isLocal) return som(n)
   return `$${n.toLocaleString('en-US', Number.isInteger(n) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export const CURRENCIES = { USD: { symbol: '$', rate: 1 }, EUR: { symbol: '€', rate: 0.93 }, GBP: { symbol: '£', rate: 0.79 } }
 export const money = (usd, code = 'USD') => {
+  if (isLocal) return som(usd)
   const c = CURRENCIES[code] || CURRENCIES.USD
   return `${c.symbol}${Math.round(Number(usd || 0) * c.rate).toLocaleString('en-US')}`
 }

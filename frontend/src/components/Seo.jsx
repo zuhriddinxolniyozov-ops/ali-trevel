@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { isLocal } from '../market'
 
 const DEFAULT_TITLE = 'ALI TRAVEL — Discover Uzbekistan. Experience the Extraordinary.'
 const DEFAULT_DESCRIPTION = 'ALI TRAVEL designs private tours, cultural experiences, hotels and airport transfers across Samarkand, Bukhara, Khiva and Tashkent.'
@@ -54,6 +55,6 @@ export function tourJsonLd(tour) {
   return {
     '@context': 'https://schema.org', '@type': 'TouristTrip', name: tour.title, description: tour.summary, image: absolute(tour.image_url),
     touristType: tour.group_type, provider: { '@type': 'TravelAgency', name: 'ALI TRAVEL' },
-    ...(price > 0 ? { offers: { '@type': 'Offer', price: String(price), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: window.location.href.split('#')[0] } } : {}),
+    ...(price > 0 ? { offers: { '@type': 'Offer', price: String(price), priceCurrency: isLocal ? 'UZS' : 'USD', availability: 'https://schema.org/InStock', url: window.location.href.split('#')[0] } } : {}),
   }
 }
