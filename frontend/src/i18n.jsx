@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api } from './api'
 import { STRINGS } from './strings'
 import { localCurrencyText } from './market'
+import { readLang, saveLang } from './lang'
 
 export const LANGS = [
   { code: 'en', label: 'English' },
@@ -14,12 +15,8 @@ export const LANGS = [
 const COLUMN = { uz: 0, ru: 1, fr: 2, de: 3, es: 4 }
 export const LANG_KEY = 'ali-travel-locale'
 
-export const getLang = () => {
-  try {
-    const v = localStorage.getItem(LANG_KEY)
-    return LANGS.some((l) => l.code === v) ? v : 'en'
-  } catch { return 'en' }
-}
+// the site opens in English; see lang.js for where the choice is kept
+export const getLang = readLang
 
 const I18nContext = createContext(null)
 export const useI18n = () => useContext(I18nContext)
@@ -40,7 +37,7 @@ export function I18nProvider({ children }) {
   useEffect(() => { document.documentElement.lang = lang }, [lang])
 
   const setLang = (code) => {
-    try { localStorage.setItem(LANG_KEY, code) } catch { /* storage unavailable */ }
+    saveLang(code)
     setLangState(code)
   }
 

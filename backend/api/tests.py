@@ -1927,3 +1927,19 @@ class LocalMarketTests(APITestCase):
         self.assertIn("Uchrashuv", card)
         self.assertIn("Registon maydoni", card)
         self.assertNotIn("aeroport", card)
+
+    def test_short_experiences_are_added_to_both_sites_once(self):
+        call_command("add_experiences", verbosity=0)
+        call_command("add_experiences", verbosity=0)   # running it again adds nothing
+        world = {x["slug"]: x for x in self.get("/api/tours/") if x["slug"].endswith(("night-walk", "photo-shoot-national-costume", "day-trip", "uzbek-wedding", "sunset-hike"))}
+        self.assertEqual(len(world), 12)
+        self.assertEqual({x["destination_slug"] for x in world.values()}, {"samarkand", "bukhara", "khorezm"})
+        night = self.get("/api/tours/samarkand-registan-night-walk/")
+        self.assertEqual((night["price_from_usd"], night["review_count"], night["category"]), (15, 0, "Night tours"))
+        uz = self.client.get("/api/tours/samarkand-seven-lakes-day-trip/", HTTP_X_LANG="uz").json()
+        self.assertEqual(uz["category"], "Kunlik sayohatlar")
+        self.assertIn("Yetti ko'l", uz["title"])
+        home = self.get("/api/tours/samarkand-registan-night-walk/", "local")
+        self.assertEqual(home["price_from_usd"], 130000)   # 15 x 0.7 x 12 000 = 126 000 -> whole ten thousands
+        self.assertNotIn("Local guide", home["included"])
+        self.assertEqual(models.Tour.everywhere.filter(slug="samarkand-registan-night-walk").count(), 2)

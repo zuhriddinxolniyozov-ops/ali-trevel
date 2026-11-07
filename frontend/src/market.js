@@ -1,15 +1,19 @@
+import { readLang } from './lang'
+
 // Two versions of the site: "global" (US dollars, the default) and "local" (for Uzbekistan, prices in so'm).
-// The choice is remembered in the browser; a link with ?market=local or ?market=global also sets it. Every request tells the
-// server which one it is for (see api.js), and switching reloads the page so everything is read again from that version.
+// The site always opens in the global version. A choice of the local one is kept only while that browser tab stays open
+// (sessionStorage), so a new visit starts global again; a link with ?market=local or ?market=global also sets it. Every request
+// tells the server which one it is for (see api.js), and switching reloads the page so everything is read again from that version.
 
 export const MARKET_KEY = 'ali-travel-market'
 export const MARKETS = ['global', 'local']
 
 function readMarket() {
   try {
+    localStorage.removeItem(MARKET_KEY)   // an older version remembered the choice for good: forget it
     const fromLink = new URLSearchParams(window.location.search).get('market')
-    if (MARKETS.includes(fromLink)) { localStorage.setItem(MARKET_KEY, fromLink); return fromLink }
-    const saved = localStorage.getItem(MARKET_KEY)
+    if (MARKETS.includes(fromLink)) { sessionStorage.setItem(MARKET_KEY, fromLink); return fromLink }
+    const saved = sessionStorage.getItem(MARKET_KEY)
     return MARKETS.includes(saved) ? saved : 'global'
   } catch { return 'global' }
 }
@@ -20,7 +24,7 @@ export const isLocal = MARKET === 'local'
 
 export function setMarket(next) {
   if (!MARKETS.includes(next) || next === MARKET) return
-  try { localStorage.setItem(MARKET_KEY, next) } catch { /* storage unavailable: the link below still carries it */ }
+  try { sessionStorage.setItem(MARKET_KEY, next) } catch { /* storage unavailable: the link below still carries it */ }
   const url = new URL(window.location.href)
   url.searchParams.delete('market')
   if (next === 'local') url.searchParams.set('market', 'local')   // works even where the browser cannot remember it
@@ -36,7 +40,7 @@ export function roundPrice(value) {
 }
 
 const SOM = { ru: 'сум' }
-const currentLang = () => { try { return localStorage.getItem('ali-travel-locale') || 'en' } catch { return 'en' } }
+const currentLang = () => readLang()
 
 /** 1 746 000 so'm */
 export function som(value) {

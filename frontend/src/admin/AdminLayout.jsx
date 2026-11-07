@@ -7,6 +7,7 @@ import { LANGS, useI18n } from '../i18n'
 import LogoMark from '../components/LogoMark'
 import MarketSwitch from '../components/MarketSwitch'
 import { isLocal } from '../market'
+import { adminLang } from '../lang'
 
 const NAV = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutGrid },
@@ -67,7 +68,8 @@ function AdminLanguage() {
 }
 
 export default function AdminLayout() {
-  const { t } = useI18n()
+  const { t, lang, setLang } = useI18n()
+  useEffect(() => { const own = adminLang(); if (own && own !== lang) setLang(own) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const { user, logout } = useAuth()
   const { pathname } = useLocation()
   const [stats, setStats] = useState(null)

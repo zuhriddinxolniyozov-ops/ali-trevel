@@ -7,6 +7,7 @@ import { EditButton } from '../edit/Add'
 import { SelectToggle } from './Selection'
 import { biggestGroup, useGroupTiers, usesGroupPricing } from '../groupPricing'
 import Gallery from './Gallery'
+import CardHeart from './CardHeart'
 
 /** A price; with a discount the old price is crossed out, the new one follows, plus a "-20%" badge. */
 export function PriceTag({ amount, percent = 0, className = '', badge = true }) {
@@ -110,62 +111,61 @@ export function DestinationCard({ destination: d, delay = 0 }) {
   )
 }
 
-export function TourCard({ tour: t, delay = 0 }) {
+/**
+ * A tour or experience card in the style of the big booking sites: photo with ♡, city, title, "duration • group • pickup",
+ * rating and the "from" price. With `listOnPhone` the card is a row on phones (photo left, details right), easier to scan.
+ */
+export function TourCard({ tour: t, delay = 0, listOnPhone = false }) {
   const tr = useT()
   const top = biggestGroup(useGroupTiers())
+  const href = `/tours/${t.slug}`
+  const priced = Number(t.price_from_usd) > 0
+  const meta = [tr(t.duration_label), tr(t.group_type), t.pickup_included && tr('Pickup available')].filter(Boolean)
+  const row = listOnPhone
+  const photoBox = row ? 'h-full min-h-[150px] sm:h-auto sm:min-h-0 sm:aspect-[4/3]' : 'aspect-[4/3]'
+  const badges = (
+    <>
+      {!row && <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-navy shadow-sm">{tr(t.category)}</span>}
+      {t.effective_discount > 0 && priced && <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-destructive px-2.5 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
+    </>
+  )
   return (
     <Reveal delay={delay} className="h-full">
-      <article data-edit-record={`tours:${t.slug}`} className="card-hover group relative flex h-full flex-col overflow-hidden rounded-[4px] border border-navy/10 bg-card">
+      <article data-edit-record={`tours:${t.slug}`} className={`card-hover group relative flex h-full overflow-hidden rounded-[12px] border border-navy/10 bg-card ${row ? 'flex-row sm:flex-col' : 'flex-col'}`}>
         <EditButton resource="tours" record={t} />
-        <div className="relative">
-        {t.gallery?.length > 0 ? (
-          <>
-            <Gallery images={[t.image_url, ...t.gallery]} alt={t.title} to={`/tours/${t.slug}`} className="aspect-[4/3]" />
-            <span className="pointer-events-none absolute left-4 top-4 z-10 rounded-full bg-ivory/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-navy backdrop-blur">{tr(t.category)}</span>
-            {t.effective_discount > 0 && Number(t.price_from_usd) > 0 && <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-destructive px-3 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
-          </>
-        ) : (
-        <Link to={`/tours/${t.slug}`} className="relative block aspect-[4/3] overflow-hidden">
-          <Photo src={t.image_url} alt={t.title} className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]" />
-          <span className="absolute left-4 top-4 rounded-full bg-ivory/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-navy backdrop-blur">{tr(t.category)}</span>
-          {t.effective_discount > 0 && Number(t.price_from_usd) > 0 && <span className="absolute bottom-3 left-3 rounded-full bg-destructive px-3 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
-        </Link>
-        )}
-        <SelectToggle tour={t} />
-        </div>
-        <div className="card-pad flex flex-1 flex-col p-5">
-          <div className="flex items-center gap-3 text-[12px] text-ink">
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-turquoise-deep" />{t.destination_name}</span>·
-            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{tr(t.duration_label)}</span>
-          </div>
-          <h3 className="mt-2 font-heading text-[23px] leading-tight text-navy"><Link to={`/tours/${t.slug}`} className="hover:text-turquoise-deep">{t.title}</Link></h3>
-          <p className="hide-in-row mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink">{t.summary}</p>
-          {Number(t.price_from_usd) > 0 && (
-            <div className="hide-in-row mt-3 flex flex-wrap gap-1.5 text-[11px] text-navy">
-              {t.tour_type === 'workshop' && <span className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1"><ChefHat className="h-3 w-3" />{tr('Hands-on experience')}</span>}
-              <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CalendarX2 className="h-3 w-3 text-turquoise-deep" />{tr('Free cancellation')}</span>
-              {t.pickup_included && <span className="inline-flex items-center gap-1 rounded-full bg-sand-soft px-2.5 py-1"><CarFront className="h-3 w-3 text-turquoise-deep" />{tr('Pickup included')}</span>}
-            </div>
+        <div className={`relative ${row ? 'w-[40%] max-w-[170px] shrink-0 sm:w-auto sm:max-w-none' : ''}`}>
+          {t.gallery?.length > 0 ? (
+            <Gallery images={[t.image_url, ...t.gallery]} alt={t.title} to={href} className={photoBox} counter={false} />
+          ) : (
+            <Link to={href} tabIndex={-1} className={`relative block overflow-hidden ${photoBox}`}>
+              <Photo src={t.image_url} alt={t.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]" />
+            </Link>
           )}
-          <div className="mt-4 flex items-center gap-3 text-[12px] text-ink">
-            {t.review_count > 0 && <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-gold text-gold" /><span className="font-mono text-navy">{Number(t.rating).toFixed(1)}</span><span className="text-ink/70">({t.review_count} {tr('demo reviews')})</span></span>}
-            <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{tr(t.group_type)}</span>
-          </div>
-          <div className="mt-auto flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
-            {Number(t.price_from_usd) > 0 || !t.entrance_fee_usd ? (
-              <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink">{tr(usesGroupPricing(t) ? 'From, group of {n}+' : 'From', { n: top })}</p>
-                <p className="text-[20px] font-medium text-navy"><PriceTag amount={t.price_from_usd} percent={t.effective_discount} /><span className="ml-1 text-[0.78em] text-ink">/ {tr('person')}</span></p>
-              </div>
-            ) : (
-              <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink">{tr('Entrance ticket')}</p>
-                <p className="text-[20px] font-medium text-navy"><span className="font-mono tabular-nums">{money(t.entrance_fee_usd)}</span><span className="ml-1 text-[0.78em] text-ink">/ {tr('person')}</span></p>
-              </div>
-            )}
-            <Link to={`/tours/${t.slug}`} className="rounded-full border border-navy/20 px-4 py-2 text-[12px] font-medium text-navy transition-colors hover:border-navy hover:bg-navy hover:text-ivory">{tr('View details')}</Link>
-          </div>
+          {badges}
+          <CardHeart tour={t} className={row ? 'right-2 top-2 h-8 w-8 sm:right-3 sm:top-3 sm:h-9 sm:w-9' : ''} />
+          <div className={row ? 'hidden sm:block' : ''}><SelectToggle tour={t} /></div>
         </div>
+        <Link to={href} className={`card-pad flex min-w-0 flex-1 flex-col ${row ? 'p-3.5 sm:p-4' : 'p-4'}`}>
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-ink">{t.destination_name}</p>
+          <h3 className={`mt-1 font-body font-bold leading-snug tracking-normal text-navy group-hover:text-turquoise-deep ${row ? 'line-clamp-3 text-[15.5px] sm:text-[17px]' : 'line-clamp-3 text-[17px]'}`}>{t.title}</h3>
+          <p className="mt-1.5 text-[13px] leading-snug text-ink">{meta.join(' • ')}</p>
+          <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-1 pt-3">
+            {t.review_count > 0 ? (
+              <span className="inline-flex items-center gap-1 text-[13px]"><Star className="h-3.5 w-3.5 fill-[#ff5533] text-[#ff5533]" /><span className="font-semibold text-navy">{Number(t.rating).toFixed(1)}</span><span className="text-ink/80">({t.review_count})</span></span>
+            ) : <span />}
+            {priced || !t.entrance_fee_usd ? (
+              <span className="ml-auto text-right">
+                <span className="block text-[11.5px] leading-tight text-ink">{tr(usesGroupPricing(t) ? 'From, group of {n}+' : 'From', { n: top })}</span>
+                <span className="whitespace-nowrap text-[18px] font-bold text-navy [&_del]:font-body [&_span]:font-body"><PriceTag amount={t.price_from_usd} percent={t.effective_discount} badge={false} /><span className="ml-1 text-[12px] font-normal text-ink">/ {tr('person')}</span></span>
+              </span>
+            ) : (
+              <span className="ml-auto text-right">
+                <span className="block text-[11.5px] text-ink">{tr('Entrance ticket')}</span>
+                <span className="font-mono text-[18px] font-semibold tabular-nums text-navy">{money(t.entrance_fee_usd)}</span>
+              </span>
+            )}
+          </div>
+        </Link>
       </article>
     </Reveal>
   )

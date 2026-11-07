@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Check, Clock, Heart, MapPin, Star, X } from 'lucide-react'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Check, ChevronDown, Clock, Heart, MapPin, Search, Star, X } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, money, useAuth, useFetch } from '../hooks'
 import { biggestGroup, useGroupTiers, usesGroupPricing } from '../groupPricing'
@@ -95,12 +95,12 @@ export function DestinationDetail() {
         <p className="mt-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-ink"><Clock className="h-4 w-4" />{t('Suggested')}: {t(d.suggested_duration)}</p>
         {(mainTours.length > 0 || editing) && <>
           <h2 id="tours" className="display-lg mt-14 scroll-mt-28">{t('Tours in {name}', { name: d.name })}</h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{mainTours.map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 60} />)}<AddCard resource="tours" preset={here} label="Add a tour" /></div>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{mainTours.map((x, i) => <TourCard key={x.slug} tour={x} listOnPhone delay={i * 60} />)}<AddCard resource="tours" preset={here} label="Add a tour" /></div>
         </>}
         {(places.length > 0 || editing) && <>
           <h2 className="display-lg mt-16">{t('Historical places in {name}', { name: d.name })}</h2>
           <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-ink">{t('Visit a single place with a guide, or combine them all in the city tour.')}</p>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{places.map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 50} />)}<AddCard resource="tours" preset={placePreset} label="Add a historical place" /></div>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{places.map((x, i) => <TourCard key={x.slug} tour={x} listOnPhone delay={i * 50} />)}<AddCard resource="tours" preset={placePreset} label="Add a historical place" /></div>
         </>}
         {!tours.loading && !tours.data.length && <div className="mt-8"><EmptyState title="No tours listed yet" body="Ask us for a custom journey." /><Link to="/plan" className="btn-primary mt-4">{t('Plan My Trip')}</Link></div>}
       </div>
@@ -109,24 +109,76 @@ export function DestinationDetail() {
 }
 
 /* ---------- tours ---------- */
+/**
+ * Tours and experiences, laid out like the big booking sites: a search box, a sticky row of filters (city and kind),
+ * the number of results and a grid of cards (a list of rows on phones). The filters live in the address, so a filtered
+ * page can be shared: /tours?city=samarkand&category=Day%20trips
+ */
 export function Tours() {
   const t = useT()
   const { data, loading } = useFetch('/tours/', { list: true })
-  const [cat, setCat] = useState('All')
+  const [params, setParams] = useSearchParams()
+  const cat = params.get('category') || 'All'
+  const city = params.get('city') || ''
+  const [q, setQ] = useState(params.get('q') || '')
+  const setParam = (key, value) => {
+    const next = new URLSearchParams(params)
+    if (value && value !== 'All') next.set(key, value); else next.delete(key)
+    setParams(next, { replace: true })
+  }
   const MULTI = 'Multi-city'
   const isMulti = (c) => c === MULTI || c === t(MULTI)   // the category arrives translated
   const inMulti = (x) => x.multi_city || isMulti(x.category)
-  const cats = useMemo(() => ['All', ...new Set(data.flatMap((x) => [isMulti(x.category) ? MULTI : x.category, ...(x.multi_city ? [MULTI] : [])]))], [data])   // eslint-disable-line react-hooks/exhaustive-deps
-  const rank = (x) => { const i = Object.keys(PACKAGES).indexOf(x.slug); return i < 0 ? 99 : i }  // the three packages come first, then the rest as before
-  const shown = (cat === 'All' ? data : data.filter((x) => (cat === MULTI ? inMulti(x) : x.category === cat))).map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x)
+  const cities = useMemo(() => {
+    const found = new Map()
+    data.forEach((x) => { if (x.destination_slug) found.set(x.destination_slug, { slug: x.destination_slug, name: x.destination_name, n: (found.get(x.destination_slug)?.n || 0) + 1 }) })
+    return [...found.values()].sort((a, b) => b.n - a.n)
+  }, [data])
+  const inCity = city ? data.filter((x) => x.destination_slug === city) : data
+  const cats = ['All', ...new Set(inCity.flatMap((x) => [isMulti(x.category) ? MULTI : x.category, ...(x.multi_city ? [MULTI] : [])]))]
+  const words = q.trim().toLowerCase()
+  const matches = (x) => !words || [x.title, x.summary, x.destination_name, x.category].join(' ').toLowerCase().includes(words)
+  // the three packages first, then tours and experiences, then the single historical places
+  const rank = (x) => { const i = Object.keys(PACKAGES).indexOf(x.slug); return i >= 0 ? i : x.parent_slug ? 200 : 100 }
+  const shown = inCity.filter((x) => cat === 'All' || (cat === MULTI ? inMulti(x) : x.category === cat)).filter(matches)
+    .map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x)
+  const cityName = cities.find((c) => c.slug === city)?.name
+  const filtered = cat !== 'All' || city || words
+  const chip = (on) => `h-10 shrink-0 whitespace-nowrap rounded-full border px-4 text-[14px] font-medium transition-colors ${on ? 'border-navy bg-navy text-ivory' : 'border-navy/15 bg-white text-navy hover:border-navy'}`
   return (
     <>
-      <Seo title={t('Tours & Experiences')} description={t('Private and small-group tours led by local, licensed guides.')} />
-      <PageHero eyebrow="Tours & Experiences" title="Journeys shaped around you" description="Private and small-group tours led by local, licensed guides." image={IMAGES.bukhara} />
-      <div className="shell py-16 lg:py-24">
-        <div className="mb-8 flex flex-wrap gap-2">{cats.map((c) => (
-          <button key={c} onClick={() => setCat(c)} className={`rounded-full border px-4 py-1.5 text-[12px] ${cat === c ? 'border-navy bg-navy text-ivory' : 'border-navy/15 text-navy/70 hover:border-navy'}`}>{t(c)}</button>))}</div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{loading ? <Skeleton /> : <>{shown.map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 60} />)}<AddCard resource="tours" label="Add a tour" /></>}</div>
+      <Seo title={cityName ? t('Things to do in {city}', { city: cityName }) : t('Tours & Experiences')} description={t('Private and small-group tours led by local, licensed guides.')} />
+      <section className="border-b border-navy/10 bg-sand-soft/40">
+        <div className="shell py-7 lg:py-10">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-turquoise-deep">{t('Tours & Experiences')}</p>
+          <h1 className="mt-2 font-heading text-[32px] leading-tight text-navy sm:text-[44px]">{cityName ? t('Things to do in {city}', { city: cityName }) : t('Things to do in Uzbekistan')}</h1>
+          <form role="search" onSubmit={(e) => { e.preventDefault(); setParam('q', q.trim()); e.currentTarget.querySelector('input')?.blur() }} className="relative mt-5 max-w-2xl">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink" aria-hidden="true" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search tours and activities')} aria-label={t('Search tours and activities')}
+              className="h-12 w-full rounded-full border border-navy/20 bg-white pl-12 pr-28 text-[15px] text-navy shadow-sm outline-none focus:border-navy" />
+            <button type="submit" className="absolute right-1.5 top-1.5 h-9 rounded-full bg-navy px-5 text-[14px] font-medium text-ivory hover:bg-navy-deep">{t('Search')}</button>
+          </form>
+        </div>
+      </section>
+      <div className="sticky top-[74px] z-30 border-b border-navy/10 bg-ivory/95 backdrop-blur">
+        <div className="shell flex items-center gap-2 overflow-x-auto py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <label className={`relative inline-flex cursor-pointer items-center gap-1.5 ${chip(!!city)}`}>
+            <MapPin className="h-4 w-4" aria-hidden="true" />{cityName || t('All cities')}<ChevronDown className="h-4 w-4" aria-hidden="true" />
+            <select value={city} onChange={(e) => { setParam('city', e.target.value); setParam('category', '') }} aria-label={t('City')} className="absolute inset-0 h-full w-full cursor-pointer opacity-0">
+              <option value="">{t('All cities')}</option>
+              {cities.map((c) => <option key={c.slug} value={c.slug}>{c.name} ({c.n})</option>)}
+            </select>
+          </label>
+          <span className="h-6 w-px shrink-0 bg-navy/15" aria-hidden="true" />
+          {cats.map((c) => <button key={c} type="button" aria-pressed={cat === c} onClick={() => setParam('category', c)} className={chip(cat === c)}>{t(c)}</button>)}
+        </div>
+      </div>
+      <div className="shell py-6 lg:py-8">
+        <p className="text-[14px] text-ink">{t('{n} results', { n: shown.length })}{cityName && <>: <span className="font-semibold text-navy">{cityName}</span></>}
+          {filtered && <button type="button" onClick={() => { setQ(''); setParams(new URLSearchParams(), { replace: true }) }} className="ml-3 text-[13px] font-medium text-turquoise-deep underline-offset-2 hover:underline">{t('Clear filters')}</button>}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+          {loading ? <Skeleton /> : <>{shown.map((x, i) => <TourCard key={x.slug} tour={x} listOnPhone delay={Math.min(i, 8) * 40} />)}<AddCard resource="tours" label="Add a tour" /></>}
+        </div>
         {!loading && !shown.length && <EmptyState title="No tours match" />}
       </div>
     </>

@@ -12,8 +12,9 @@ import { Photo } from './ui'
  *   thumbs  show a row of small previews under the slider
  *   arrows  'hover' (visible on hover, always on phones) or 'always'
  *   dots    show the dots under the photo (off where a caption sits there)
+ *   counter show "2 / 5" in the corner (off on cards, where the ♡ sits)
  */
-export default function Gallery({ images = [], alt = '', className = 'aspect-[4/3]', to, thumbs = false, arrows = 'hover', rounded = '', dots = true }) {
+export default function Gallery({ images = [], alt = '', className = 'aspect-[4/3]', to, thumbs = false, arrows = 'hover', rounded = '', dots = true, counter = true }) {
   const t = useT()
   const list = images.filter(Boolean)
   const box = useRef(null)
@@ -105,7 +106,7 @@ export default function Gallery({ images = [], alt = '', className = 'aspect-[4/
             {dots && <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1.5">
               {list.map((_, i) => <span key={i} className={`h-1.5 rounded-full transition-all ${i === index ? 'w-4 bg-ivory' : 'w-1.5 bg-ivory/60'}`} />)}
             </div>}
-            <span className="pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-navy/60 px-2.5 py-1 font-mono text-[10px] text-ivory">{index + 1} / {list.length}</span>
+            {counter && <span className="pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-navy/60 px-2.5 py-1 font-mono text-[10px] text-ivory">{index + 1} / {list.length}</span>}
           </>
         )}
       </div>
