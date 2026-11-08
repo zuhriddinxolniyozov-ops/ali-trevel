@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { isLocal } from '../market'
 import { CalendarDays, Check, Compass, Info, MapPin, PartyPopper, Route, Sparkles } from 'lucide-react'
 import { api } from '../api'
-import { money, useFetch } from '../hooks'
+import { money, useAuth, useFetch } from '../hooks'
 import { useT } from '../i18n'
-import { EMAIL_RE, PHONE_RE, Photo, Spinner } from '../components/ui'
+import { PHONE_RE, Photo, Spinner } from '../components/ui'
+import SignInToBook from '../components/SignInToBook'
+import { DepositNote, goToPayment, useDeposit } from '../components/Deposit'
 import PhoneInput from '../components/PhoneInput'
 import { PACKAGES } from '../components/PackageCard'
 import { parseStop } from '../components/DayPlan'
@@ -23,19 +25,23 @@ const addDays = (iso, n) => new Date(new Date(iso).getTime() + n * 864e5).toISOS
 /** Sends the drafted journey to the team as a booking request (a tour request for a ready tour, otherwise "custom"). */
 function SendItinerary({ plan }) {
   const t = useT()
-  const [f, setF] = useState({ full_name: '', email: '', phone: '' })
+  const { user } = useAuth()
+  const deposit = useDeposit()
+  const [f, setF] = useState({ full_name: user?.full_name || '', phone: '', meet_date: plan.from || '', meet_time: '', meet_place: '' })
   const [errors, setErrors] = useState({})
   const [state, setState] = useState('idle')
   const [reference, setReference] = useState('')
   const [message, setMessage] = useState('')
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
+  const set = (k) => (e) => { setF((p) => ({ ...p, [k]: e.target.value })); setErrors((er) => ({ ...er, [k]: undefined })) }   // a field's error goes away as soon as it is corrected
 
   async function submit(e) {
     e.preventDefault()
     const err = {}
     if (f.full_name.trim().length < 2) err.full_name = 'Please tell us your name.'
-    if (!EMAIL_RE.test(f.email.trim())) err.email = 'A valid email is required.'
     if (!PHONE_RE.test(f.phone.trim())) err.phone = 'Please enter your phone number.'
+    if (!f.meet_date) err.meet_date = 'Choose the day.'
+    if (!f.meet_time) err.meet_time = 'Choose the time.'
+    if (!f.meet_place.trim()) err.meet_place = 'Write where we should meet you.'
     setErrors(err)
     if (Object.keys(err).length) return
     setState('saving'); setMessage('')
@@ -43,14 +49,17 @@ function SendItinerary({ plan }) {
       const res = await api.post('/bookings-submit/', {
         service_type: plan.tour ? 'tour' : 'custom', service_slug: plan.tour?.slug || '',
         service_title: plan.tour ? plan.tour.title : `Custom journey · ${plan.totalDays} days`,
-        full_name: f.full_name.trim(), email: f.email.trim(), phone: f.phone.trim(),
+        full_name: f.full_name.trim(), email: user.email, phone: f.phone.trim(),
         travel_date: plan.from, end_date: plan.to, guests: Number(plan.travelers),
-        details_summary: plan.summary, special_requests: plan.outline,
+        details_summary: `${plan.summary}\n\nMeeting: ${f.meet_date} ${f.meet_time} · ${f.meet_place.trim()}`, special_requests: plan.outline,
+        arrival_date: f.meet_date, arrival_time: f.meet_time, meeting_place: f.meet_place.trim(),
       })
+      if (goToPayment(res)) return
       setReference(res.reference); setState('done')
     } catch (ex) { setState('error'); setMessage(ex.message) }
   }
 
+  if (!user) return <SignInToBook className="mt-6" id="send-itinerary" />
   if (state === 'done') {
     return (
       <div className="mt-6 flex items-start gap-3 rounded-sm border border-turquoise-deep/30 bg-sand-soft/60 p-5">
@@ -68,10 +77,13 @@ function SendItinerary({ plan }) {
     <form onSubmit={submit} noValidate className="mt-6 rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t('Send to our team')}</p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink">{t('This saves your draft as a request so a person can reply. No payment is taken.')}</p>
-      <div className="mt-4 space-y-3">{field('full_name', 'Full name')}{field('email', 'Email', 'email')}<label className="label">{t('Phone')}<PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} invalid={!!errors.phone} />
-        {errors.phone && <span className="mt-1 block text-[11.5px] text-destructive">{t(errors.phone)}</span>}</label></div>
-      {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{message}</p>}
-      <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending your itinerary') : t('Send this itinerary to our team')}</button>
+      <div className="mt-4 space-y-3">{field('full_name', 'Full name')}<label className="label">{t('Email')}<input type="email" className="input bg-sand-soft/60 text-ink" value={user.email} readOnly /></label><label className="label">{t('Phone')}<PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} invalid={!!errors.phone} />
+        {errors.phone && <span className="mt-1 block text-[11.5px] text-destructive">{t(errors.phone)}</span>}</label>
+        <div className="grid grid-cols-2 gap-3">{field('meet_date', 'Meeting day', 'date')}{field('meet_time', 'Meeting time', 'time')}</div>
+        {field('meet_place', 'Meeting place', 'text', t('For example: Samarkand airport, or your hotel and its address'))}</div>
+      {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{t(message)}</p>}
+      <DepositNote deposit={deposit} />
+      <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending your itinerary') : deposit ? t('Send and pay {amount}', { amount: deposit.amount }) : t('Send this itinerary to our team')}</button>
     </form>
   )
 }

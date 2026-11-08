@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useBackClose } from '../hooks'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Loader2, Upload } from 'lucide-react'
 import { api } from '../api'
@@ -169,7 +170,7 @@ function ImagePopup({ popup, onClose }) {
           <img src={url} alt="" className="mt-2 h-32 w-full rounded-sm bg-sand-soft object-cover" data-edit-ignore />
           <label className="btn-outline mt-3 !h-9 w-full cursor-pointer !text-[12px]">
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}{busy ? t('Uploading…') : t('Upload photo')}
-            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" onChange={upload} disabled={busy} />
+            <input type="file" accept="image/*" className="sr-only" onChange={upload} disabled={busy} />
           </label>
           <label className="label mt-3">{t('Or paste an image link')}<input className="input !mt-1" value={url} onChange={(e) => setUrl(e.target.value)} /></label>
           {error && <p role="alert" className="mt-2 text-[12px] text-destructive">{error}</p>}
@@ -186,6 +187,7 @@ function ImagePopup({ popup, onClose }) {
 
 function RecordModal() {
   const { modal, closeModal, bump } = useEdit()
+  useBackClose(!!modal, closeModal)
   const [record, setRecord] = useState(undefined) // undefined = loading, null = new
   useEffect(() => {
     if (!modal) return

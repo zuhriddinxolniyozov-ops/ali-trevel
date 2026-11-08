@@ -81,7 +81,7 @@ def make_local(rate):
             for key in COST_RATE_KEYS:
                 if key in rates:
                     rates[key] = float(to_local_cost(rates[key], rate))
-            _copy(site, cost_rates=rates, usd_rate=rate, usd_rate_date=datetime.date.today()).save()
+            _copy(site, cost_rates=rates, usd_rate=rate, usd_rate_date=datetime.date.today(), deposit_amount=Decimal("13000")).save()   # the $1 deposit in so'm
             added["settings"] = 1
         factor = models.SiteContent.current().local_price_factor
         have = set(models.SiteText.objects.values_list("lang", "key"))

@@ -123,7 +123,7 @@ export default function AdminLayout() {
   )
 
   return (
-    <div className="flex h-screen bg-background text-navy">
+    <div className="relative flex h-screen overflow-hidden bg-background text-navy">   {/* only the content area scrolls, never the window */}
       <div className="hidden lg:block">{sidebar}</div>
       {mobileNav && <div className="fixed inset-0 z-40 flex bg-navy/40 lg:hidden" onClick={() => setMobileNav(false)}><div onClick={(e) => e.stopPropagation()}>{sidebar}</div></div>}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -156,7 +156,7 @@ export default function AdminLayout() {
           </div>
         </header>
         {isLocal && <p className="shrink-0 border-b border-[#16a34a]/30 bg-[#f0fdf4] px-5 py-2 text-[13px] text-[#15803d] lg:px-8">🇺🇿 {t('You are editing the local site: its own tours, bookings and settings, prices in so\'m. The global site is not changed.')}</p>}
-        <main className={pathname.startsWith('/admin/site') ? 'min-h-0 flex-1 overflow-hidden' : 'min-h-0 flex-1 overflow-y-auto px-5 py-8 lg:px-8'}><Outlet context={{ stats, refreshStats }} /></main>
+        <main className={pathname.startsWith('/admin/site') ? 'relative min-h-0 flex-1 overflow-hidden' : 'relative min-h-0 flex-1 overflow-y-auto px-5 py-8 lg:px-8'}><Outlet context={{ stats, refreshStats }} /></main>
       </div>
     </div>
   )

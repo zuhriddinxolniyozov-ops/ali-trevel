@@ -164,6 +164,12 @@ else:
 
 # Who is told about new bookings, messages and reviews (defaults to the site e-mail), and the optional Telegram bot.
 NOTIFY_EMAILS = env_list('NOTIFY_EMAILS', 'alitravel004@gmail.com')
+
+# Octo payments for the booking deposit (api/payments.py). Empty = test mode: no money moves.
+OCTO_SHOP_ID = env('OCTO_SHOP_ID', '')
+OCTO_SECRET = env('OCTO_SECRET', '')
+OCTO_UNIQUE_KEY = env('OCTO_UNIQUE_KEY', '')   # signs Octo's payment notifications
+OCTO_TEST = env_bool('OCTO_TEST', False)       # true: Octo's own test transactions
 TELEGRAM_BOT_TOKEN = env('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = env('TELEGRAM_CHAT_ID')  # optional extra chat; normally leave empty
 # Telegram accounts that receive the team alerts. Only these accounts (and nobody else who talks to the bot) are told about

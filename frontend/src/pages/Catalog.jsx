@@ -17,6 +17,7 @@ import { useEdit } from '../edit/context'
 import { TourFaq, TourReviews, TrustPanel } from '../components/Trust'
 import Seo, { tourJsonLd } from '../components/Seo'
 import { isLocal } from '../market'
+import TourBonuses from '../components/Bonuses'
 
 /** The cover first, then the extra photos the team uploaded. */
 const photosOf = (x) => [x.image_url, ...(x.gallery || [])].filter(Boolean)
@@ -234,6 +235,7 @@ export function TourDetail() {
           </div>
           {tour.gallery?.length > 0 && <div className="mt-8"><Gallery images={photosOf(tour)} alt={tour.title} className="aspect-[16/10]" rounded="rounded-sm" thumbs arrows="always" /></div>}
           <p className="mt-8 text-[17px] leading-relaxed text-ink">{tour.description}</p>
+          <TourBonuses tour={tour} />
 
           <h3 className="mt-10 font-heading text-[26px]">{t('Tour details')}</h3>
           <dl className="mt-3 border-t border-navy/10">

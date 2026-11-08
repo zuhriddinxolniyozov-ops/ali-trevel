@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
-import { api, getToken, setToken } from './api'
+import { api, getToken, onUploads, setToken, uploadState } from './api'
 import { useI18n } from './i18n'
 import { useEdit } from './edit/context'
 import { isLocal, roundPrice, som } from './market'
@@ -58,11 +58,47 @@ export function AuthProvider({ children }) {
   const value = {
     user, ready, isAuthenticated: !!user,
     login: (email, password) => api.post('/auth/login/', { email, password }).then(finish),
-    register: (payload) => api.post('/auth/register/', payload).then(finish),
+    // step 1 e-mails a code ({pending: true}); step 2 (verifyEmail) creates the account and signs in
+    register: (payload) => api.post('/auth/register/', payload).then((d) => (d?.token ? finish(d) : d)),
+    verifyEmail: (email, code) => api.post('/auth/verify-email/', { email, code }).then(finish),
+    resendCode: (email) => api.post('/auth/register/resend/', { email }),
     logout: async () => { try { await api.post('/auth/logout/') } catch { /* already signed out */ } setToken(null); setUser(null) },
     updateProfile: (payload) => api.patch('/auth/me/', payload).then(setUser),
   }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+/* ---------- photo uploads in progress ---------- */
+/** { count, percent } of the photos being uploaded right now (re-renders as they progress). */
+export function useUploads() {
+  const [state, setState] = useState(uploadState)
+  useEffect(() => onUploads(() => setState(uploadState())), [])
+  return state
+}
+
+/* ---------- the Back button closes a window first ---------- */
+/**
+ * While `open` is true (an editing form, the phone menu, a dialog), the browser's Back button closes it instead of leaving
+ * the page: opening adds a history entry, Back removes it and calls onClose. Closing it with its own buttons removes the entry.
+ */
+export function useBackClose(open, onClose) {
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const alive = useRef(false)
+  useEffect(() => {
+    if (!open) return undefined
+    alive.current = true
+    let backed = false
+    if (!window.history.state?.aliOverlay) window.history.pushState({ ...(window.history.state || {}), aliOverlay: true }, '')
+    const onPop = () => { backed = true; closeRef.current() }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      alive.current = false
+      window.removeEventListener('popstate', onPop)
+      // closed by its own button: take our entry away again (unless the window simply re-opened, or the page changed)
+      if (!backed) setTimeout(() => { if (!alive.current && window.history.state?.aliOverlay) window.history.back() }, 0)
+    }
+  }, [open])
 }
 
 /* ---------- scroll reveal ---------- */

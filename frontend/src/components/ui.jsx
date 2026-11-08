@@ -8,6 +8,7 @@ import { SelectToggle } from './Selection'
 import { biggestGroup, useGroupTiers, usesGroupPricing } from '../groupPricing'
 import Gallery from './Gallery'
 import CardHeart from './CardHeart'
+import { BonusLine } from './Bonuses'
 
 /** A price; with a discount the old price is crossed out, the new one follows, plus a "-20%" badge. */
 export function PriceTag({ amount, percent = 0, className = '', badge = true }) {
@@ -126,6 +127,7 @@ export function TourCard({ tour: t, delay = 0, listOnPhone = false }) {
   const badges = (
     <>
       {!row && <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-navy shadow-sm">{tr(t.category)}</span>}
+      {(t.bonuses || []).some((b) => b.title) && <span className="pointer-events-none absolute left-3 top-12 z-10 hidden items-center gap-1 rounded-full bg-gradient-to-r from-[#b8860b] to-[#e0a82e] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-white shadow sm:inline-flex">🎁 {tr('Bonus')}</span>}
       {t.effective_discount > 0 && priced && <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-destructive px-2.5 py-1 font-mono text-[11px] text-white shadow">−{t.effective_discount}%</span>}
     </>
   )
@@ -149,6 +151,7 @@ export function TourCard({ tour: t, delay = 0, listOnPhone = false }) {
           <p className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-ink">{t.destination_name}</p>
           <h3 className={`mt-1 font-body font-bold leading-snug tracking-normal text-navy group-hover:text-turquoise-deep ${row ? 'line-clamp-3 text-[15.5px] sm:text-[17px]' : 'line-clamp-3 text-[17px]'}`}>{t.title}</h3>
           <p className="mt-1.5 text-[13px] leading-snug text-ink">{meta.join(' • ')}</p>
+          <BonusLine tour={t} className="mt-2" />
           <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-1 pt-3">
             {t.review_count > 0 ? (
               <span className="inline-flex items-center gap-1 text-[13px]"><Star className="h-3.5 w-3.5 fill-[#ff5533] text-[#ff5533]" /><span className="font-semibold text-navy">{Number(t.rating).toFixed(1)}</span><span className="text-ink/80">({t.review_count})</span></span>

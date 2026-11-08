@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { biggestGroup, useGroupTiers } from '../groupPricing'
-import { Loader2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Gift, Languages, Loader2, Plus, Trash2, Upload } from 'lucide-react'
 import { api } from '../api'
-import { useFetch } from '../hooks'
+import { useFetch, useUploads } from '../hooks'
 import { LANGS, useT } from '../i18n'
 import { cap } from '../pages/Auth'
 import { CostsField, ItineraryField } from './PlanFields'
@@ -28,10 +28,11 @@ function ImageField({ label, help, value, onChange }) {
         <div className="min-w-[240px] flex-1">
           <label className="btn-outline !h-10 cursor-pointer !text-[13px]">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{busy ? t('Uploading…') : value ? t('Replace photo') : t('Upload photo')}
-            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" onChange={pick} disabled={busy} />
+            <input type="file" accept="image/*" className="sr-only" onChange={pick} disabled={busy} />
           </label>
           <input className="input" placeholder={t('Or paste an image link')} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
-          {error && <span role="alert" className="mt-1 block text-[12px] text-destructive">{error}</span>}
+          {busy && <UploadBar />}
+          {error && <span role="alert" className="mt-1 block text-[12px] text-destructive">{t(error)}</span>}
           {help && <span className="mt-1 block text-[12px] font-normal text-ink/80">{help}</span>}
         </div>
       </div>
@@ -39,6 +40,76 @@ function ImageField({ label, help, value, onChange }) {
   )
 }
 
+/** "Uploading the photo… 45%" with a bar: shown while a photo travels to the server. */
+export function UploadBar() {
+  const t = useT()
+  const { percent } = useUploads()
+  return (
+    <span role="status" className="mt-2 block font-normal">
+      <span className="text-[12.5px] text-turquoise-deep">{t('Uploading the photo… {n}%', { n: percent })} · {t('Please wait, do not leave the page.')}</span>
+      <span className="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-navy/10"><span className="block h-full rounded-full bg-turquoise-deep transition-all" style={{ width: `${Math.max(4, percent)}%` }} /></span>
+    </span>
+  )
+}
+
+
+const BONUS_TAGS = [['bonus', 'Bonus'], ['exclusive', 'Exclusive'], ['gift', 'Gift']]
+const BONUS_LANGS = LANGS.slice(1)
+
+/** The special bonuses of a tour: each with a title, a story, a duration, a tag, photos and its own translations. */
+function BonusesField({ label, help, value, onChange }) {
+  const t = useT()
+  const [open, setOpen] = useState({})   // bonus index -> language whose translation is open
+  const list = Array.isArray(value) ? value : []
+  const put = (i, patch) => onChange(list.map((b, j) => (j === i ? { ...b, ...patch } : b)))
+  const putLang = (i, code, patch) => put(i, { i18n: { ...(list[i].i18n || {}), [code]: { ...(list[i].i18n?.[code] || {}), ...patch } } })
+  const move = (i, by) => { const next = [...list]; [next[i], next[i + by]] = [next[i + by], next[i]]; onChange(next) }
+  const small = 'grid h-9 w-9 shrink-0 place-items-center rounded-full border border-navy/15 text-navy hover:bg-sand-soft disabled:opacity-30'
+  return (
+    <div className="label sm:col-span-2">{label}
+      {help && <span className="mt-1 block text-[12px] font-normal text-ink/80">{help}</span>}
+      <div className="mt-3 space-y-5 font-normal">
+        {list.map((b, i) => (
+          <div key={i} className="rounded-[12px] border border-[#e8c36a]/60 bg-[#fffbf0] p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#9a6b00]"><Gift className="h-4 w-4" />{t('Bonus')} {i + 1}</p>
+              <div className="flex gap-1.5">
+                <button type="button" className={small} aria-label={t('Move up')} disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp className="h-4 w-4" /></button>
+                <button type="button" className={small} aria-label={t('Move down')} disabled={i === list.length - 1} onClick={() => move(i, 1)}><ArrowDown className="h-4 w-4" /></button>
+                <button type="button" className={`${small} border-red-200 text-destructive hover:bg-red-50`} aria-label={t('Delete')} onClick={() => { if (window.confirm(t('Delete this bonus?'))) onChange(list.filter((_, j) => j !== i)) }}><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="label sm:col-span-2">{t('Bonus title')} <span className="text-destructive">*</span><input className="input" maxLength={120} placeholder={t('For example: Visit to the house-museum of Islam Karimov')} value={b.title || ''} onChange={(e) => put(i, { title: e.target.value })} /></label>
+              <label className="label">{t('Duration')}<input className="input" maxLength={60} placeholder={t('About 1 hour')} value={b.duration || ''} onChange={(e) => put(i, { duration: e.target.value })} /></label>
+              <label className="label">{t('Label on the photo')}<select className="input" value={b.tag || 'bonus'} onChange={(e) => put(i, { tag: e.target.value })}>{BONUS_TAGS.map(([k, l]) => <option key={k} value={k}>{t(l)}</option>)}</select></label>
+              <label className="label sm:col-span-2">{t('What the traveller sees and does')}<textarea rows={4} maxLength={2000} className="input" value={b.text || ''} onChange={(e) => put(i, { text: e.target.value })} /></label>
+              <ImageField label={t('Main photo')} value={b.image || ''} onChange={(v) => put(i, { image: v })} />
+              <GalleryField label={t('More photos')} value={b.gallery || []} onChange={(v) => put(i, { gallery: v })} />
+            </div>
+            <div className="mt-3">
+              <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink"><Languages className="h-4 w-4" />{t('Translations')}:
+                {BONUS_LANGS.map((l) => {
+                  const done = b.i18n?.[l.code]?.title
+                  return <button key={l.code} type="button" onClick={() => setOpen((o) => ({ ...o, [i]: o[i] === l.code ? null : l.code }))}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.08em] ${open[i] === l.code ? 'border-navy bg-navy text-ivory' : 'border-navy/15 text-navy/75'}`}>{l.code}{done && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-turquoise align-middle" />}</button>
+                })}</p>
+              {open[i] && (
+                <div className="mt-3 grid gap-3 rounded-sm bg-white p-3 sm:grid-cols-2">
+                  <label className="label sm:col-span-2">{t('Bonus title')} ({open[i].toUpperCase()})<input className="input" maxLength={120} placeholder={b.title || ''} value={b.i18n?.[open[i]]?.title || ''} onChange={(e) => putLang(i, open[i], { title: e.target.value })} /></label>
+                  <label className="label">{t('Duration')} ({open[i].toUpperCase()})<input className="input" maxLength={60} placeholder={b.duration || ''} value={b.i18n?.[open[i]]?.duration || ''} onChange={(e) => putLang(i, open[i], { duration: e.target.value })} /></label>
+                  <label className="label sm:col-span-2">{t('What the traveller sees and does')} ({open[i].toUpperCase()})<textarea rows={4} maxLength={2000} className="input" placeholder={b.text || ''} value={b.i18n?.[open[i]]?.text || ''} onChange={(e) => putLang(i, open[i], { text: e.target.value })} /></label>
+                  <p className="text-[12px] text-ink/80 sm:col-span-2">{t('Leave a field empty to show the English text.')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <button type="button" className="btn-outline !h-10" onClick={() => onChange([...list, { title: '', text: '', duration: '', tag: 'bonus', image: '', gallery: [], i18n: {} }])}><Plus className="h-4 w-4" />{t('Add a bonus')}</button>
+      </div>
+    </div>
+  )
+}
 
 /**
  * A form is a list of sections, each a list of field specs:
@@ -51,7 +122,7 @@ const LANGUAGE_CHOICES = 'multi:English,Russian,Uzbek,French,German,Spanish'
 
 export const FORMS = {
   tours: {
-    defaults: { status: 'draft', gallery: [], multi_city: false, discount_percent: 0, group_pricing: true, price_from_usd: 0, rating: 4.8, review_count: 0, tour_type: 'car', languages: ['English'], group_type: 'Small group', category: 'Culture' },
+    defaults: { status: 'draft', gallery: [], bonuses: [], multi_city: false, discount_percent: 0, group_pricing: true, price_from_usd: 0, rating: 4.8, review_count: 0, tour_type: 'car', languages: ['English'], group_type: 'Small group', category: 'Culture' },
     sections: [
       { title: 'Basics', hint: 'What travellers see first on the tour card and tour page.', fields: [
         { k: 'destination', kind: 'destination', label: 'Destination', required: true, help: 'The tour is listed on this destination’s page.' },
@@ -91,6 +162,9 @@ export const FORMS = {
         { k: 'pickup_included', label: 'Pickup included', kind: 'bool' },
         { k: 'included', label: 'Included', kind: 'list', tr: true, placeholder: 'Local guide service\nTaxi service' },
         { k: 'excluded', label: 'Not included', kind: 'list', tr: true, placeholder: 'Lunch\nDinner' },
+      ] },
+      { title: 'Special bonuses', hint: 'Something extra the traveller gets in this tour, for example a visit to a special place. Shown as its own golden block on the tour page and as a line on the tour card.', fields: [
+        { k: 'bonuses', label: 'Bonuses', kind: 'bonuses' },
       ] },
       { title: 'Route', hint: 'The places visited, in order.', fields: [
         { k: 'route', label: 'Route stops', kind: 'list', tr: true, placeholder: 'Registan Square | 16\nGur-e-Amir Mausoleum | 13', help: 'One stop per line as: Name | entrance ticket in USD. The ticket price is optional.' },
@@ -218,7 +292,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
     all.forEach(({ k, kind = 'text' }) => {
       if (kind === 'destination') return
       const stored = record ? record[k] : preset?.[k] ?? form.defaults[k]
-      out[k] = kind === 'list' ? toText(stored, 'list') : kind.startsWith('multi:') || kind === 'itinerary' || kind === 'costs' || kind === 'gallery' ? stored || [] : stored ?? (kind === 'bool' ? false : '')
+      out[k] = kind === 'list' ? toText(stored, 'list') : kind.startsWith('multi:') || kind === 'itinerary' || kind === 'costs' || kind === 'gallery' || kind === 'bonuses' ? stored || [] : stored ?? (kind === 'bool' ? false : '')
     })
     out.destination_slug = record?.destination_slug ?? preset?.destination_slug ?? ''
     out.destination_name = record?.destination_name ?? preset?.destination_name ?? out.destination_name ?? ''
@@ -234,6 +308,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const uploading = useUploads()   // a photo still on its way: saving now would leave it out
 
   // Picking a destination also copies its name (and its translated names) so the tour reads correctly in every language.
   function pickDestination(slug) {
@@ -251,7 +326,9 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
   }
 
   async function save(e) {
-    e.preventDefault(); setError(''); setBusy(true)
+    e.preventDefault()
+    if (uploading.count > 0) return setError('Wait until the photo has uploaded, then save.')
+    setError(''); setBusy(true)
     const body = {}
     all.forEach(({ k, kind = 'text' }) => {
       if (kind === 'destination' || k === 'destination_name') return
@@ -287,6 +364,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
     if (kind === 'costs') return <CostsField key={k} label={t(fl)} help={help && t(help)} value={base.cost_items} onChange={set} />
 
     if (kind === 'gallery') return <GalleryField key={k} label={t(fl)} help={help && t(help)} value={base[k]} onChange={set} />
+    if (kind === 'bonuses') return <BonusesField key={k} label={t(fl)} help={help && t(help)} value={base[k]} onChange={(v) => setBase((p) => ({ ...p, bonuses: v }))} />
     if (kind === 'image') return <ImageField key={k} label={t(fl)} help={help && t(help)} value={value} onChange={set} />
 
     if (kind === 'bool') {
@@ -358,7 +436,7 @@ export default function RecordEditor({ resource, record, onDone, label, preset }
       )}
 
       {error && <p role="alert" className="mt-4 text-[13px] text-destructive">{error}</p>}
-      <div className="mt-6 flex gap-3"><button className="btn-primary" disabled={busy}>{record ? t('Save changes') : t('Create')}</button><button type="button" className="btn-outline" onClick={() => onDone(false)}>{t('Cancel')}</button>
+      <div className="mt-6 flex flex-wrap items-center gap-3"><button className="btn-primary" disabled={busy || uploading.count > 0}>{uploading.count > 0 ? t('Uploading the photo… {n}%', { n: uploading.percent }) : record ? t('Save changes') : t('Create')}</button><button type="button" className="btn-outline" onClick={() => onDone(false)}>{t('Cancel')}</button>
         {record && <button type="button" onClick={remove} className="ml-auto h-11 rounded-full border border-red-200 px-5 text-[13px] text-destructive hover:bg-red-50">{t('Delete')}</button>}</div>
     </form>
   )

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { Archive, Copy, MapPin, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { api } from '../api'
-import { money, useFetch } from '../hooks'
+import { money, useBackClose, useFetch } from '../hooks'
 import { useT } from '../i18n'
 import { StatusPill } from '../pages/Auth'
 import RecordEditor from './Editor'
@@ -27,6 +27,7 @@ export function AdminTours() {
   const [filter, setFilter] = useState('all')
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null)
+  useBackClose(!!editing, () => setEditing(null))   // Back closes the form, not the whole section
 
   const shown = useMemo(() => data.filter((x) => (filter === 'all' || x.status === filter) && x.title.toLowerCase().includes(q.toLowerCase())), [data, filter, q])
   const refresh = () => { reload(); refreshStats() }
@@ -88,6 +89,7 @@ function ListingTable({ cfg }) {
   const { data, reload } = useRecords(cfg.key)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null)
+  useBackClose(!!editing, () => setEditing(null))   // Back closes the form, not the whole section
   const shown = data.filter((r) => r[cfg.title].toLowerCase().includes(q.toLowerCase()))
   const refresh = () => { reload(); refreshStats() }
   const toggle = async (r) => { await api.patch(`/${cfg.key}/${r.slug}/`, { status: r.status === 'published' ? 'draft' : 'published' }); refresh() }

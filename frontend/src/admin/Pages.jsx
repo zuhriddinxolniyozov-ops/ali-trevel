@@ -6,6 +6,8 @@ import { money, useFetch } from '../hooks'
 import { useT } from '../i18n'
 import { Spinner } from '../components/ui'
 import { StatusPill, cap } from '../pages/Auth'
+import { DepositBadge } from '../pages/Trips'
+import { formatMoney, isLocal } from '../market'
 
 function StatCard({ icon: Icon, value, label, note, to }) {
   const body = (
@@ -79,6 +81,12 @@ export function Bookings() {
   const [notes, setNotes] = useState({})
   const shown = filter === 'all' ? data : data.filter((b) => b.status === filter)
   const update = async (b, body) => { await api.patch(`/bookings/${b.id}/update_status/`, body); reload(); refreshStats() }
+  const [depositError, setDepositError] = useState({})
+  const deposit = async (b, action) => {
+    if (!window.confirm(t(action === 'refund' ? 'Refund the deposit to the traveller?' : 'Keep the deposit and not refund it?'))) return
+    setDepositError((x) => ({ ...x, [b.id]: '' }))
+    try { await api.post(`/bookings/${b.id}/deposit/`, { action }); reload() } catch (ex) { setDepositError((x) => ({ ...x, [b.id]: ex.message })) }
+  }
   return (
     <div>
       <div className="flex flex-wrap gap-2">{['all', ...BOOKING_STATUSES].map((s) => (
@@ -88,7 +96,7 @@ export function Bookings() {
           <div key={b.id} className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button onClick={() => setOpen(open === b.id ? null : b.id)} className="min-w-0 text-left">
-                <p className="text-[16px] font-medium">{b.service_title_local || b.service_title}</p>
+                <p className="flex flex-wrap items-center gap-2 text-[16px] font-medium">{b.service_title_local || b.service_title}<DepositBadge b={b} /></p>
                 <p className="text-[13px] text-ink"><span className="font-mono">{b.reference}</span> · {b.full_name} · {b.travel_date || t('date TBC')} · {b.guests} {t('Guests')}{Number(b.estimated_total_usd) > 0 && ` · ${t('est.')} ${money(b.estimated_total_usd)}`}</p>
               </button>
               <select value={b.status} onChange={(e) => update(b, { status: e.target.value })} className="h-10 rounded-full border border-navy/15 bg-white px-3 text-[14px]">{BOOKING_STATUSES.map((s) => <option key={s} value={s}>{t(cap(s))}</option>)}</select>
@@ -100,7 +108,17 @@ export function Bookings() {
                     : (b.arrival_date || b.arrival_note) && <p className="font-medium text-navy">✈ {t('Arrives at Samarkand airport')}: {[b.arrival_date, b.arrival_time?.slice(0, 5), b.arrival_flight, b.arrival_note].filter(Boolean).join(' · ')}</p>}{b.details_summary && <p className="text-ink">{b.details_summary}</p>}{b.special_requests && <p className="whitespace-pre-wrap text-ink">{b.special_requests}</p>}</div>
                 <div><label className="label">{t('Internal notes')}<textarea rows={3} className="input" value={notes[b.id] ?? b.admin_notes} onChange={(e) => setNotes({ ...notes, [b.id]: e.target.value })} /></label>
                   <button className="btn-outline mt-2 !h-9" onClick={() => update(b, { admin_notes: notes[b.id] ?? b.admin_notes })}>{t('Save notes')}</button>
-                  {b.status === 'completed' && <button className="btn-primary mt-2 ml-2 !h-9" onClick={() => nav('/admin/accounting')}>{t('Open in Accounting')}</button>}</div>
+                  {b.status === 'completed' && <button className="btn-primary mt-2 ml-2 !h-9" onClick={() => nav('/admin/accounting')}>{t('Open in Accounting')}</button>}
+                  {b.deposit_status === 'paid' && (
+                    <div className="mt-4 rounded-sm border border-navy/10 bg-white p-3">
+                      <p className="text-[13px] text-navy">{t('Deposit paid')}: <b>{formatMoney(b.deposit_amount, b.market)}</b></p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" className="btn-primary !h-9" onClick={() => deposit(b, 'refund')}>{t('Refund the deposit')}</button>
+                        <button type="button" className="btn-outline !h-9" onClick={() => deposit(b, 'keep')}>{t('Do not refund')}</button>
+                      </div>
+                    </div>
+                  )}
+                  {depositError[b.id] && <p role="alert" className="mt-2 text-[12.5px] text-destructive">{t(depositError[b.id])}</p>}</div>
               </div>
             )}
           </div>
@@ -269,6 +287,17 @@ export function Settings() {
           })}
         </div>
         <button type="button" className="btn-outline mt-3 !h-9" onClick={() => { setSaved(false); setForm({ ...current, extra_contacts: [...(current.extra_contacts || []), { label: '', value: '', url: '' }] }) }}><Plus className="h-4 w-4" />{t('Add a line')}</button>
+      </fieldset>
+      <fieldset className="mt-8 rounded-sm border border-navy/12 p-4">
+        <legend className="px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink">{t('Booking deposit')}</legend>
+        <p className="text-[13px] text-ink">{t('A small payment right after a booking request keeps fake requests away. The team is told about a request only when its deposit is paid.')}</p>
+        <p className={`mt-3 rounded-sm px-3 py-2 text-[13px] ${current.deposit_provider === 'octo' ? 'bg-[#f0fdf4] text-[#15803d]' : 'bg-amber-100 text-amber-900'}`}>
+          {t(current.deposit_provider === 'octo' ? 'Octo is connected: deposits are real card payments.' : 'Octo is not connected yet: deposits work in test mode and no money is taken.')}</p>
+        <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy"><input type="checkbox" className="h-4 w-4 accent-navy" checked={!!current.deposit_enabled} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_enabled: e.target.checked }) }} />{t('Ask for a deposit after a booking request')}</label>
+        <label className="label mt-4 max-w-xs">{t('Deposit amount')} ({isLocal ? "so'm" : 'USD'})<input type="number" min="0" step="any" className="input" value={current.deposit_amount ?? ''} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_amount: e.target.value }) }} />
+          <span className="mt-1 block text-[11.5px] font-normal text-ink/80">{t('Octo refunds at least 1 USD (or the same in so\'m), so keep the deposit at that level or above.')}</span></label>
+        <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy"><input type="checkbox" className="h-4 w-4 accent-navy" checked={current.deposit_refund_on_cancel !== false} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_refund_on_cancel: e.target.checked }) }} />{t('Refund automatically when the traveller cancels')}</label>
+        <p className="mt-1 text-[12px] text-ink/80">{t('Off: a cancelled request keeps its deposit until you press “Refund the deposit” or “Do not refund” in Bookings.')}</p>
       </fieldset>
       <div className="mt-6 flex items-center gap-3"><button className="btn-primary">{t('Save settings')}</button>{saved && <span className="text-[14px] text-turquoise-deep">{t('Saved')}</span>}</div>
     </form>

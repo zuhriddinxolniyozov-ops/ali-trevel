@@ -123,7 +123,7 @@ export function TourReviews({ tour }) {
   const { data } = useFetch(`/reviews/?tour_slug=${tour.slug}`, { list: true })
   const [open, setOpen] = useState(false)
   return (
-    <div className="mt-12">
+    <div id="reviews" className="mt-12 scroll-mt-28">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-heading text-[26px]">{t('Traveller reviews')}</h3>
         {data.length > 0 && <span className="inline-flex items-center gap-2 text-[14px] text-ink"><Stars value={Math.round(Number(tour.rating))} /><span className="font-mono text-navy">{Number(tour.rating).toFixed(1)}</span>({data.length})</span>}

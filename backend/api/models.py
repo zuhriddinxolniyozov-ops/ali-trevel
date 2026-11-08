@@ -120,6 +120,10 @@ class SiteContent(MarketScoped):
     usd_rate_date = models.DateField(null=True, blank=True)
     # Local site: a traveller's so'm price = dollar price x this factor x the dollar rate (0.7 = 30% below the dollar price).
     local_price_factor = models.DecimalField(max_digits=7, decimal_places=5, default=Decimal("0.70000"))
+    # The booking deposit (see payments.py): asked right after a booking request is sent, in this site's currency.
+    deposit_enabled = models.BooleanField(default=False)
+    deposit_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("1.00"))
+    deposit_refund_on_cancel = models.BooleanField(default=True)   # a traveller who cancels gets it back at once
 
     @classmethod
     def current(cls):
@@ -176,6 +180,9 @@ class Tour(Catalogued, Discountable):
     cost_items = models.JSONField(default=list, blank=True)
     included = models.JSONField(default=list, blank=True)
     excluded = models.JSONField(default=list, blank=True)
+    # Special bonuses the team adds to a tour, shown as their own block on the tour page:
+    # [{"title", "text", "duration", "tag": "bonus|exclusive|gift", "image", "gallery": [...], "i18n": {"uz": {"title", "text", "duration"}}}]
+    bonuses = models.JSONField(default=list, blank=True)
     # Practical details shown in the "Tour details" panel.
     tour_type = models.CharField(max_length=20, blank=True)  # car | walking | mixed | train | workshop
     group_pricing = models.BooleanField(default=True)  # the listed price is for the biggest group of the table; smaller groups pay more per person
@@ -304,6 +311,15 @@ class BookingRequest(MarketScoped):
     # Local site: travellers are already in Uzbekistan, so instead of the airport they say where the team meets them
     # (arrival_date and arrival_time then hold the day and time of that meeting).
     meeting_place = models.CharField(max_length=200, blank=True)
+    # The booking deposit (payments.py): "" = not asked, pending, paid, failed, refunded or kept (the team decided not to refund).
+    DEPOSIT_STATES = [("", "Not asked"), ("pending", "Waiting for payment"), ("paid", "Paid"), ("failed", "Not paid"), ("refunded", "Refunded"), ("kept", "Kept")]
+    deposit_status = models.CharField(max_length=10, choices=DEPOSIT_STATES, blank=True, default="")
+    deposit_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    deposit_currency = models.CharField(max_length=3, blank=True)
+    deposit_txn = models.CharField(max_length=40, blank=True, db_index=True)   # our id of the current payment attempt
+    deposit_payment_id = models.CharField(max_length=64, blank=True)          # Octo's payment UUID
+    deposit_paid_at = models.DateTimeField(null=True, blank=True)
+    deposit_refunded_at = models.DateTimeField(null=True, blank=True)
     wants_guide = models.BooleanField(default=False)  # local site: the guide is not in the price; the traveller asked for one (extra payment)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -493,6 +509,19 @@ class Review(MarketScoped):
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
         self.refresh_tour()
+
+
+class PendingSignup(models.Model):
+    """Someone creating an account: the account itself is made only when they type the code we e-mailed them, so every
+    account (and every booking made with it) belongs to a real mailbox. The password and the code are kept only as hashes."""
+
+    email = models.EmailField(unique=True)
+    full_name = models.CharField(max_length=150, blank=True)
+    password_hash = models.CharField(max_length=128)
+    code_hash = models.CharField(max_length=64)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    sent_at = models.DateTimeField()
+    created = models.DateTimeField(auto_now_add=True)
 
 
 class TelegramUser(models.Model):

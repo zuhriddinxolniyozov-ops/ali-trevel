@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Check, Plus, Trash2, X } from 'lucide-react'
-import { discounted, exactMoney } from '../hooks'
+import { discounted, exactMoney, useBackClose } from '../hooks'
 import { groupPercent } from '../groupPricing'
 import { isLocal, roundPrice } from '../market'
 import { useT } from '../i18n'
@@ -76,6 +76,7 @@ function SelectionDialog({ onClose }) {
   const [sent, setSent] = useState(false)
   const grouped = items.some((x) => x.group_pricing)
   const close = () => { if (sent) clear(); onClose() }
+  useBackClose(true, close)   // the dialog is shown only while open: Back closes it
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') close() }
     window.addEventListener('keydown', onKey)

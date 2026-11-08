@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Loader2, Trash2, Upload } from 'lucide-react'
 import { api } from '../api'
 import { useT } from '../i18n'
+import { UploadBar } from './Editor'
 
 /** Several photos for one listing: upload many at once, paste links, reorder with the arrows, remove with the bin. */
 export default function GalleryField({ label, help, value = [], onChange }) {
@@ -59,14 +60,15 @@ export default function GalleryField({ label, help, value = [], onChange }) {
       <div className="mt-3 flex flex-wrap items-start gap-3">
         <label className="btn-outline !h-10 cursor-pointer !text-[13px]">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{busy ? t('Uploading…') : t('Upload photos')}
-          <input type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" onChange={pick} disabled={busy} />
+          <input type="file" multiple accept="image/*" className="sr-only" onChange={pick} disabled={busy} />
         </label>
         <div className="flex min-w-[240px] flex-1 gap-2">
           <input className="input !mt-0" placeholder={t('Or paste an image link')} value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }} />
           <button type="button" onClick={addLink} className="btn-outline !h-10 !text-[13px]">{t('Add')}</button>
         </div>
       </div>
-      {error && <span role="alert" className="mt-1 block text-[12px] text-destructive">{error}</span>}
+      {busy && <UploadBar />}
+      {error && <span role="alert" className="mt-1 block text-[12px] text-destructive">{t(error)}</span>}
       {help && <span className="mt-1 block text-[12px] font-normal text-ink/80">{help}</span>}
     </div>
   )

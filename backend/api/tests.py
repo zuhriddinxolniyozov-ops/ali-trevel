@@ -272,7 +272,11 @@ class NotificationTests(APITestCase):
         self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
 
     def booking(self, lang="en", **extra):
-        return self.client.post("/api/bookings-submit/", dict(self.body, **extra), format="json", HTTP_X_LANG=lang)
+        self.client.force_authenticate(get_user_model().objects.get_or_create(username="anna@example.com", defaults={"email": "anna@example.com"})[0])   # only signed-in travellers book
+        try:
+            return self.client.post("/api/bookings-submit/", dict(self.body, **extra), format="json", HTTP_X_LANG=lang)
+        finally:
+            self.client.force_authenticate(None)
 
     def test_a_new_booking_tells_the_team_and_the_traveller(self):
         response = self.booking()
@@ -311,7 +315,7 @@ class NotificationTests(APITestCase):
         ref = self.booking().json()["reference"]
         booking = models.BookingRequest.objects.get(reference=ref)
         mail.outbox.clear()
-        self.client.force_authenticate(get_user_model().objects.create_user("anna@example.com", "anna@example.com", "x"))
+        self.client.force_authenticate(get_user_model().objects.get(username="anna@example.com"))
         self.assertEqual(self.client.post(f"/api/bookings/{booking.pk}/cancel/").status_code, 200)
         self.assertEqual(sorted(tuple(m.to) for m in mail.outbox), [("anna@example.com",), ("team@example.com",)])
 
@@ -593,6 +597,7 @@ class TelegramBookingTests(APITestCase):
         models.TelegramUser.objects.create(chat_id=2002, username="someone_else", lang="en")  # an ordinary traveller
         with mock.patch("api.notifications.telegram_send") as send:
             self.book()  # a booking made in the bot ...
+            self.client.force_authenticate(get_user_model().objects.get_or_create(username="bo@example.com", defaults={"email": "bo@example.com"})[0])
             self.client.post("/api/bookings-submit/", {"service_type": "tour", "service_slug": "city", "service_title": "City Tour", "full_name": "Bo", "email": "bo@example.com",
                                                       "phone": "+998901112233", "travel_date": "2099-06-01", "guests": 2}, format="json")  # ... and one from the website
         team_alerts = [call.args for call in send.call_args_list if call.args[0] == "1001"]
@@ -1175,6 +1180,7 @@ class MigrationsTests(APITestCase):
         call_command("makemigrations", check=True, dry_run=True, verbosity=0)
 
     def test_a_booking_request_of_every_kind_is_accepted(self):
+        self.client.force_authenticate(get_user_model().objects.get_or_create(username="anna.test@example.com", defaults={"email": "anna.test@example.com"})[0])
         for kind in ("tour", "hotel", "transport", "plan", "selection"):
             answer = self.client.post("/api/bookings-submit/", {"service_type": kind, "service_slug": "x", "service_title": "Something", "full_name": "Anna Test", "email": f"{kind}@example.com", "phone": "+998901234567",
                                                                 "travel_date": "2031-02-01", "end_date": None, "guests": 2, "details_summary": "", "special_requests": "", "estimated_total_usd": 123.4, "website": ""}, format="json")
@@ -1860,6 +1866,7 @@ class LocalMarketTests(APITestCase):
         body = {"service_type": "tour", "service_slug": "samarkand-city-tour", "service_title": "Samarqand", "full_name": "Ali Valiyev",
                 "email": "ali@example.com", "phone": "+998 90 123 45 67", "travel_date": "2026-12-20", "guests": 2, "estimated_total_usd": 4914000}
         with mock.patch("api.notifications._send_email") as sent, mock.patch("api.notifications._send_telegram"), self.settings(EMAIL_HOST="smtp.example.com"):
+            self.client.force_authenticate(get_user_model().objects.get_or_create(username="ali@example.com", defaults={"email": "ali@example.com"})[0])
             reference = self.client.post("/api/bookings-submit/", body, format="json", HTTP_X_MARKET="local").json()["reference"]
         self.client.force_authenticate(self.boss)
         local_refs = [b["reference"] for b in self.client.get("/api/bookings/", HTTP_X_MARKET="local").json()]
@@ -1917,6 +1924,7 @@ class LocalMarketTests(APITestCase):
         body = {"service_type": "tour", "service_slug": "samarkand-city-tour", "service_title": "Samarqand", "full_name": "Ali Valiyev",
                 "email": "meet@example.com", "phone": "+998 90 123 45 67", "travel_date": "2026-12-20", "guests": 2}
         with mock.patch("api.notifications._tell_the_team") as team, mock.patch("api.notifications._send_email"), mock.patch("api.notifications._background", side_effect=lambda fn, *a, **k: fn(*a, **k)):
+            self.client.force_authenticate(get_user_model().objects.get_or_create(username="meet@example.com", defaults={"email": "meet@example.com"})[0])
             ref = self.client.post("/api/bookings-submit/", body, format="json", HTTP_X_MARKET="local").json()["reference"]
             arrival = {"reference": ref, "email": "meet@example.com", "arrival_date": "2026-12-20", "arrival_time": "09:30"}
             self.assertEqual(self.client.post("/api/bookings-arrival/", arrival, format="json", HTTP_X_MARKET="local").status_code, 400)   # the place is needed
@@ -1943,3 +1951,249 @@ class LocalMarketTests(APITestCase):
         self.assertEqual(home["price_from_usd"], 130000)   # 15 x 0.7 x 12 000 = 126 000 -> whole ten thousands
         self.assertNotIn("Local guide", home["included"])
         self.assertEqual(models.Tour.everywhere.filter(slug="samarkand-registan-night-walk").count(), 2)
+
+
+import datetime  # noqa: E402
+from django.utils import timezone  # noqa: E402
+
+
+class EmailCodeSignupTests(APITestCase):
+    """An account is opened only with the code e-mailed to its address, and only signed-in travellers can book."""
+
+    form = {"full_name": "Dilnoza Karimova", "email": "Dilnoza@Example.com", "password": "Samarqand-2026!"}
+
+    def setUp(self):
+        cache.clear()
+
+    def code(self):
+        import re
+        return re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
+
+    def test_the_account_exists_only_after_the_emailed_code(self):
+        answer = self.client.post("/api/auth/register/", self.form, format="json", HTTP_X_LANG="uz")
+        self.assertEqual(answer.status_code, 202)
+        self.assertTrue(answer.json()["pending"])
+        self.assertFalse(get_user_model().objects.filter(username="dilnoza@example.com").exists())   # not before the code
+        self.assertEqual(mail.outbox[-1].to, ["dilnoza@example.com"])
+        self.assertIn("tasdiqlash kodi", mail.outbox[-1].subject)
+        pending = models.PendingSignup.objects.get(email="dilnoza@example.com")
+        self.assertNotIn(self.code(), pending.code_hash)
+        self.assertNotIn("Samarqand-2026!", pending.password_hash)
+        done = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
+        self.assertEqual(done.status_code, 201)
+        self.assertTrue(done.json()["token"])
+        self.assertFalse(models.PendingSignup.objects.exists())
+        login = self.client.post("/api/auth/login/", {"email": "dilnoza@example.com", "password": "Samarqand-2026!"}, format="json")
+        self.assertEqual(login.status_code, 200)
+
+    def test_wrong_codes_are_limited_and_a_new_code_needs_a_minute(self):
+        self.client.post("/api/auth/register/", self.form, format="json")
+        right = self.code()
+        wrong = "000000" if right != "000000" else "111111"
+        for left in (4, 3, 2, 1, 0):
+            answer = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": wrong}, format="json")
+            self.assertEqual((answer.status_code, answer.json()["attempts_left"]), (400, left))
+        blocked = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": right}, format="json")
+        self.assertIn("Too many wrong codes", blocked.json()["error"])          # even the right code no longer works
+        self.assertEqual(self.client.post("/api/auth/register/resend/", {"email": "dilnoza@example.com"}, format="json").status_code, 429)
+        models.PendingSignup.objects.update(sent_at=timezone.now() - datetime.timedelta(minutes=2))
+        self.assertEqual(self.client.post("/api/auth/register/resend/", {"email": "dilnoza@example.com"}, format="json").status_code, 202)
+        ok = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
+        self.assertEqual(ok.status_code, 201)
+
+    def test_an_old_code_expires_and_a_weak_password_or_taken_email_is_refused(self):
+        self.client.post("/api/auth/register/", self.form, format="json")
+        models.PendingSignup.objects.update(sent_at=timezone.now() - datetime.timedelta(minutes=16))
+        late = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
+        self.assertIn("expired", late.json()["error"])
+        weak = self.client.post("/api/auth/register/", {**self.form, "email": "weak@example.com", "password": "12345678"}, format="json")
+        self.assertEqual(weak.status_code, 400)
+        get_user_model().objects.create_user("taken@example.com", "taken@example.com", "x")
+        taken = self.client.post("/api/auth/register/", {**self.form, "email": "taken@example.com"}, format="json")
+        self.assertEqual(taken.status_code, 400)
+
+    def test_a_mail_that_cannot_be_sent_opens_nothing(self):
+        with mock.patch("django.core.mail.send_mail", side_effect=OSError("smtp down")):
+            answer = self.client.post("/api/auth/register/", self.form, format="json")
+        self.assertEqual(answer.status_code, 503)
+        self.assertFalse(models.PendingSignup.objects.exists())
+
+    def test_booking_needs_a_signed_in_account_and_uses_its_confirmed_email(self):
+        body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Ali", "email": "fake@nowhere.test",
+                "phone": "+998 90 123 45 67", "travel_date": "2027-05-01", "guests": 2}
+        anonymous = self.client.post("/api/bookings-submit/", body, format="json")
+        self.assertEqual(anonymous.status_code, 401)
+        self.assertTrue(anonymous.json()["login_required"])
+        self.assertFalse(models.BookingRequest.objects.exists())
+        user = get_user_model().objects.create_user("real@example.com", "real@example.com", "x")
+        self.client.force_authenticate(user)
+        made = self.client.post("/api/bookings-submit/", body, format="json")
+        self.assertEqual(made.status_code, 201)
+        booking = models.BookingRequest.objects.get(reference=made.json()["reference"])
+        self.assertEqual((booking.email, booking.user), ("real@example.com", user))   # never the e-mail typed in the form
+
+    def test_a_traveller_cannot_swap_the_confirmed_email(self):
+        user = get_user_model().objects.create_user("real@example.com", "real@example.com", "Old-pass-123")
+        self.client.force_authenticate(user)
+        answer = self.client.post("/api/auth/credentials/", {"current_password": "Old-pass-123", "new_email": "other@example.com"}, format="json")
+        self.assertEqual(answer.status_code, 400)
+        user.refresh_from_db()
+        self.assertEqual(user.username, "real@example.com")
+
+    def test_a_planned_journey_carries_the_meeting_day_time_and_place(self):
+        self.client.force_authenticate(get_user_model().objects.create_user("plan@example.com", "plan@example.com", "x"))
+        body = {"service_type": "custom", "service_title": "Custom journey · 5 days", "full_name": "Ali", "phone": "+998 90 123 45 67",
+                "travel_date": "2027-05-01", "end_date": "2027-05-05", "guests": 2, "arrival_date": "2027-05-01", "arrival_time": "09:30", "meeting_place": "Samarkand airport"}
+        with mock.patch("api.notifications._tell_the_team") as team, mock.patch("api.notifications._send_email"), mock.patch("api.notifications._background", side_effect=lambda fn, *a, **k: fn(*a, **k)):
+            ref = self.client.post("/api/bookings-submit/", body, format="json").json()["reference"]
+        booking = models.BookingRequest.objects.get(reference=ref)
+        self.assertEqual((str(booking.arrival_date), booking.arrival_time.strftime("%H:%M"), booking.meeting_place), ("2027-05-01", "09:30", "Samarkand airport"))
+        self.assertIn("Uchrashuv:</b> 01.05.2027 09:30 · Samarkand airport", team.call_args.kwargs["telegram_html"])
+
+    def test_a_traveller_sees_the_trips_of_both_sites_and_only_their_own(self):
+        from .market import use
+        me = get_user_model().objects.create_user("me@example.com", "me@example.com", "x")
+        base = dict(service_type="tour", service_slug="t", service_title="T", full_name="Me", phone="1", guests=2)
+        models.BookingRequest.objects.create(email="me@example.com", user=me, travel_date="2020-01-01", **base)
+        with use("local"):
+            models.BookingRequest.objects.create(email="me@example.com", user=me, travel_date="2099-01-01", **base)
+        models.BookingRequest.objects.create(email="someone@example.com", **base)
+        self.client.force_authenticate(me)
+        rows = self.client.get("/api/bookings/").json()
+        self.assertEqual(sorted(r["market"] for r in rows), ["global", "local"])
+        self.assertTrue(all(r["email"] == "me@example.com" for r in rows))
+
+
+class BookingDepositTests(APITestCase):
+    """A small deposit after a booking request: switched on and off by the team, refunded on cancellation or by hand."""
+
+    body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Ali", "phone": "+998 90 123 45 67",
+            "travel_date": "2027-05-01", "guests": 2, "estimated_total_usd": 418}
+
+    def setUp(self):
+        cache.clear()
+        self.site = models.SiteContent.current()
+        self.site.deposit_enabled, self.site.deposit_amount = True, Decimal("1.00")
+        self.site.save()
+        self.me = get_user_model().objects.create_user("dep@example.com", "dep@example.com", "x")
+        self.boss = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
+        self.client.force_authenticate(self.me)
+
+    def book(self):
+        with mock.patch("api.notifications.booking_created") as told:
+            answer = self.client.post("/api/bookings-submit/", self.body, format="json").json()
+        return answer, told
+
+    def test_switched_off_the_booking_goes_straight_to_the_team(self):
+        self.site.deposit_enabled = False
+        self.site.save()
+        answer, told = self.book()
+        self.assertNotIn("payment_url", answer)
+        told.assert_called_once()
+
+    def test_in_test_mode_the_team_hears_only_after_the_deposit_and_a_cancellation_refunds_it(self):
+        answer, told = self.book()
+        self.assertTrue(answer["payment_url"].endswith(f"/pay/test/{answer['reference']}"))
+        told.assert_not_called()                                   # nothing reaches the team before the payment
+        booking = models.BookingRequest.objects.get(reference=answer["reference"])
+        self.assertEqual((booking.deposit_status, booking.deposit_amount, booking.deposit_currency), ("pending", Decimal("1.00"), "USD"))
+        with mock.patch("api.notifications.booking_created") as told:
+            paid = self.client.post("/api/deposits/test/", {"reference": booking.reference, "result": "paid"}, format="json")
+            self.assertEqual(paid.status_code, 200, paid.content)
+        told.assert_called_once()
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_status, "paid")
+        self.assertEqual(list(booking.payments.values_list("amount_usd", flat=True)), [Decimal("1.00")])
+        self.client.post(f"/api/bookings/{booking.pk}/cancel/")
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_status, "refunded")
+        self.assertEqual(sum(booking.payments.values_list("amount_usd", flat=True)), Decimal("0"))
+
+    def test_the_team_decides_when_automatic_refunds_are_off(self):
+        self.site.deposit_refund_on_cancel = False
+        self.site.save()
+        refs = []
+        for _ in range(2):
+            answer, _ = self.book()
+            refs.append(answer["reference"])
+            with mock.patch("api.notifications.booking_created"):
+                self.client.post("/api/deposits/test/", {"reference": answer["reference"], "result": "paid"}, format="json")
+        first, second = (models.BookingRequest.objects.get(reference=r) for r in refs)
+        self.client.post(f"/api/bookings/{first.pk}/cancel/")
+        first.refresh_from_db()
+        self.assertEqual(first.deposit_status, "paid")              # waits for the team
+        self.assertEqual(self.client.post(f"/api/bookings/{first.pk}/deposit/", {"action": "refund"}, format="json").status_code, 403)   # not the traveller
+        self.client.force_authenticate(self.boss)
+        self.assertEqual(self.client.post(f"/api/bookings/{first.pk}/deposit/", {"action": "refund"}, format="json").json()["deposit_status"], "refunded")
+        self.assertEqual(self.client.post(f"/api/bookings/{second.pk}/deposit/", {"action": "keep"}, format="json").json()["deposit_status"], "kept")
+
+    def test_a_closed_payment_page_can_be_paid_again_and_the_local_site_asks_in_som(self):
+        answer, _ = self.book()
+        booking = models.BookingRequest.objects.get(reference=answer["reference"])
+        self.client.post("/api/deposits/test/", {"reference": booking.reference, "result": "cancel"}, format="json")
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_status, "failed")
+        first_txn = booking.deposit_txn
+        again = self.client.post(f"/api/bookings/{booking.pk}/pay/").json()
+        self.assertIn("/pay/test/", again["payment_url"])
+        booking.refresh_from_db()
+        self.assertNotEqual(booking.deposit_txn, first_txn)           # a new payment attempt
+        from .market import use
+        with use("local"):
+            local = models.SiteContent.current()
+            local.deposit_enabled, local.deposit_amount = True, Decimal("13000")
+            local.save()
+        with mock.patch("api.notifications.booking_created"):
+            ref = self.client.post("/api/bookings-submit/", self.body, format="json", HTTP_X_MARKET="local").json()["reference"]
+        local_booking = models.BookingRequest.everywhere.get(reference=ref)
+        self.assertEqual((local_booking.deposit_amount, local_booking.deposit_currency), (Decimal("13000"), "UZS"))
+
+    @override_settings(OCTO_SHOP_ID="12345", OCTO_SECRET="s3cret", OCTO_UNIQUE_KEY="unique-key")
+    def test_with_octo_only_a_correctly_signed_notification_marks_the_deposit_paid(self):
+        import hashlib
+        with mock.patch("api.payments._octo", return_value={"octo_payment_UUID": "uuid-1", "octo_pay_url": "https://pay.octo.uz/abc"}) as octo:
+            answer, _ = self.book()
+        self.assertEqual(answer["payment_url"], "https://pay.octo.uz/abc")
+        sent = octo.call_args.args[1]
+        self.assertEqual((sent["total_sum"], sent["currency"], sent["notify_url"].endswith("/api/deposits/octo/notify/")), (1.0, "USD", True))
+        booking = models.BookingRequest.objects.get(reference=answer["reference"])
+        self.assertEqual(self.client.post("/api/deposits/test/", {"reference": booking.reference, "result": "paid"}, format="json").status_code, 403)
+        self.client.force_authenticate(None)
+        forged = {"shop_transaction_id": booking.deposit_txn, "octo_payment_UUID": "uuid-1", "status": "succeeded", "signature": "0" * 40}
+        self.assertEqual(self.client.post("/api/deposits/octo/notify/", forged, format="json").status_code, 403)
+        good = dict(forged, signature=hashlib.sha1(b"unique-keyuuid-1succeeded").hexdigest().upper())
+        with mock.patch("api.notifications.booking_created") as told:
+            self.assertEqual(self.client.post("/api/deposits/octo/notify/", good, format="json").status_code, 200)
+        told.assert_called_once()
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_status, "paid")
+        with mock.patch("api.payments._octo", return_value={"status": "succeeded"}) as octo:
+            from . import payments
+            payments.refund(booking)
+        self.assertEqual(octo.call_args.args[0], "refund")
+        self.assertEqual(octo.call_args.args[1]["octo_payment_UUID"], "uuid-1")
+
+
+class TourBonusTests(APITestCase):
+    """The team adds special bonuses to a tour; only clean, known fields are kept."""
+
+    def test_admins_add_bonuses_with_photos_and_translations_and_junk_is_dropped(self):
+        call_command("seed", verbosity=0)
+        from .local_copy import make_local
+        make_local(Decimal("12000"))
+        call_command("add_bonus_examples", verbosity=0)
+        tour = self.client.get("/api/tours/samarkand-city-tour/").json()
+        self.assertEqual(tour["bonuses"][0]["tag"], "exclusive")
+        self.assertIn("Hazrati Xizr", tour["bonuses"][0]["i18n"]["uz"]["text"])
+        self.assertTrue(self.client.get("/api/tours/samarkand-city-tour/", HTTP_X_MARKET="local").json()["bonuses"])   # both sites
+        bonus = {"title": "Sunset tea on a rooftop", "text": "Tea with a view of the Registan.", "duration": "30 min", "tag": "weird",
+                 "image": "javascript:alert(1)", "gallery": ["/media/uploads/a.jpg", "ftp://x"], "i18n": {"uz": {"title": "Tomda choy"}, "xx": {"title": "?"}}, "extra": "dropped"}
+        self.assertEqual(self.client.patch("/api/tours/samarkand-city-tour/", {"bonuses": [bonus]}, format="json").status_code, 401)
+        self.client.force_authenticate(get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True))
+        saved = self.client.patch("/api/tours/samarkand-city-tour/", {"bonuses": [bonus, {"title": ""}]}, format="json").json()["bonuses"]
+        self.assertEqual(len(saved), 1)                                   # the empty row is dropped
+        self.assertEqual((saved[0]["tag"], saved[0]["image"], saved[0]["gallery"]), ("bonus", "", ["/media/uploads/a.jpg"]))
+        self.assertEqual(saved[0]["i18n"], {"uz": {"title": "Tomda choy"}})
+        self.assertNotIn("extra", saved[0])
+        too_many = self.client.patch("/api/tours/samarkand-city-tour/", {"bonuses": [bonus] * 13}, format="json")
+        self.assertEqual(too_many.status_code, 400)

@@ -42,6 +42,13 @@ export function roundPrice(value) {
 const SOM = { ru: 'сум' }
 const currentLang = () => readLang()
 
+/** A booking's amount in the currency of the site it was made on (dollars on the global site, so'm on the local one). */
+export function formatMoney(value, market) {
+  const n = Number(value) || 0
+  if (market === 'local') return som(n)
+  return `$${n.toLocaleString('en-US', Number.isInteger(n) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 /** 1 746 000 so'm */
 export function som(value) {
   const n = Math.round(Number(value) || 0)

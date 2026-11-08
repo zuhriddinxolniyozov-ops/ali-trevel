@@ -7,7 +7,9 @@ import { roundPrice } from '../market'
 import { useT } from '../i18n'
 import ArrivalForm from './ArrivalForm'
 import GroupPrice from './GroupPrice'
-import { EMAIL_RE, Field, Honeypot, PHONE_RE, Photo, Spinner, Success } from './ui'
+import { Field, Honeypot, PHONE_RE, Photo, Spinner, Success } from './ui'
+import SignInToBook from './SignInToBook'
+import { DepositNote, goToPayment, useDeposit } from './Deposit'
 import PhoneInput from './PhoneInput'
 
 const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new Date(from)) / 864e5) : 0)
@@ -23,6 +25,7 @@ const nightsBetween = (from, to) => (from && to ? Math.round((new Date(to) - new
 export default function BookingForm({ serviceType, serviceSlug = '', serviceTitle, estimatedTotal = 0, perGuest = true, extra = {}, intro, onSubmitted, hotels = [], defaultNights = 1, mode = 'standard', groupPriced = false, priceFor = null, unit = 'room', stayIncluded = false, guideOptional = false }) {
   const t = useT()
   const { user } = useAuth()
+  const deposit = useDeposit()
   const { settings } = useSettings()
   const isStay = mode === 'hotel'
   const tiers = settings.group_pricing_tiers
@@ -55,7 +58,6 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     e.preventDefault()
     const err = {}
     if (f.full_name.trim().length < 2) err.full_name = 'Please tell us your name.'
-    if (!EMAIL_RE.test(f.email.trim())) err.email = 'A valid email is required.'
     if (!PHONE_RE.test(f.phone.trim())) err.phone = 'Please enter your phone number.'
     if (!f.travel_date) err.travel_date = isStay ? 'Choose your check-in date.' : 'Choose a date.'
     if (isStay && f.travel_date && money.nights < 1) err.end_date = 'Check-out must be after check-in.'
@@ -71,21 +73,23 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     try {
       const res = await api.post('/bookings-submit/', {
         service_type: serviceType, service_slug: serviceSlug, service_title: serviceTitle,
-        full_name: f.full_name.trim(), email: f.email.trim(), phone: f.phone.trim(),
+        full_name: f.full_name.trim(), email: user.email, phone: f.phone.trim(),
         travel_date: f.travel_date, end_date: f.end_date || null, guests: Number(f.guests) || 1,
         website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, wants_guide: guideOptional && f.wants_guide, ...extra,
         details_summary: [extra.details_summary, ...lines].filter(Boolean).join('\n\n'),
       })
+      if (goToPayment(res)) return   // the deposit first; the team hears about the request once it is paid
       setReference(res.reference); setSent({ guests: Number(f.guests) || 1, perPerson: perPersonAt(Number(f.guests) || 1), total }); setState('done')
       onSubmitted?.({ reference: res.reference, date: f.travel_date, guests: Number(f.guests) || 1, hotel: hotel?.name })
     } catch (ex) { setState('error'); setMessage(ex.message) }
   }
 
+  if (!user) return <SignInToBook />
   if (state === 'done') {
     return (
       <div>
         <Success title="Request received">{t('Reference')} <span className="font-mono text-[12.5px]">{reference}</span> — {t('status pending. Nothing is booked or charged yet: our team will reply by email to confirm availability and the final price.')}</Success>
-        {serviceType === 'tour' && <ArrivalForm reference={reference} email={f.email.trim()} date={f.travel_date} />}
+        {serviceType === 'tour' && <ArrivalForm reference={reference} email={user.email} date={f.travel_date} />}
         {grouped && sent && <GroupPrice tiers={tiers} priceAt={perPersonAt} guests={sent.guests} perPerson={sent.perPerson} total={sent.total} />}
       </div>
     )
@@ -97,7 +101,8 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
       <div className="relative mt-4 space-y-3">
         <Honeypot value={f.website} onChange={set('website')} />
         <Field label="Full name" error={errors.full_name}><input className="input" value={f.full_name} onChange={set('full_name')} /></Field>
-        <Field label="Email" error={errors.email}><input type="email" className="input" value={f.email} onChange={set('email')} /></Field>
+        <Field label="Email"><input type="email" className="input bg-sand-soft/60 text-ink" value={user.email} readOnly aria-describedby="book-email-note" />
+          <span id="book-email-note" className="mt-1 block text-[11.5px] font-normal text-ink/80">{t('Booking requests are sent with the e-mail of your account.')}</span></Field>
         <Field label="Phone" error={errors.phone}><PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} invalid={!!errors.phone} /></Field>
         {isStay ? (
           <>
@@ -179,8 +184,9 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
           <span className="block">({t('sample rate, confirmed by our team')})</span></p>
       )}
       {grouped && total > 0 && <GroupPrice tiers={tiers} priceAt={perPersonAt} guests={f.guests} perPerson={perPersonAt(Number(f.guests) || 1)} total={money.base} />}
-      {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{message}</p>}
-      <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending') : t('Send request')}</button>
+      {message && <p role="alert" className="mt-3 text-[12px] text-destructive">{t(message)}</p>}
+      <DepositNote deposit={deposit} />
+      <button type="submit" disabled={state === 'saving'} className="btn-primary mt-4 w-full">{state === 'saving' && <Spinner />}{state === 'saving' ? t('Sending') : deposit ? t('Send and pay {amount}', { amount: deposit.amount }) : t('Send request')}</button>
     </form>
   )
 }

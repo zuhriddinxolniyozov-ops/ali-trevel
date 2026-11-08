@@ -187,6 +187,8 @@ def _booking_data(booking):
         "type": booking.service_type, "end": booking.end_date.strftime("%d.%m.%Y") if booking.end_date else "",
         "service_uz": uz_name(booking.service_type, booking.service_slug, booking.service_title),
         "estimate": money(booking.estimated_total_usd, booking.market, decimals=False) if booking.estimated_total_usd else "",
+        "meeting": " ".join(x for x in (booking.arrival_date.strftime("%d.%m.%Y") if booking.arrival_date else "", booking.arrival_time.strftime("%H:%M") if booking.arrival_time else "") if x)
+                   + (f" · {booking.meeting_place}" if booking.meeting_place else "") if booking.meeting_place else "",
     }
 
 
@@ -238,6 +240,8 @@ def _booking_html(data):
              f"👥 <b>Mehmonlar:</b> {data['guests']}"]
     if data["estimate"]:
         lines.append(f"💵 <b>Taxminiy jami:</b> {data['estimate']} <i>(namunaviy narx, jamoa tasdiqlaydi)</i>")
+    if data.get("meeting"):
+        lines.append(f"📍 <b>Uchrashuv:</b> {e(data['meeting'])}")
     lines += ["", f"👤 <b>Ism:</b> {e(data['name'])}", f"📞 <b>Telefon:</b> {e(data['phone'])}"]
     if not data["email"].endswith(".invalid"):
         lines.append(f"✉️ <b>Email:</b> {e(data['email'])}")

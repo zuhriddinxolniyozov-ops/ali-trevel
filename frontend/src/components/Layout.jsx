@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Check, Globe, Mail, Menu, Phone, Send, Tag, X } from 'lucide-react'
-import { useAuth, useFetch, useSettings } from '../hooks'
+import { useAuth, useBackClose, useFetch, useSettings } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
 import { ChatButton } from './Trust'
 import { SelectionProvider } from './Selection'
@@ -109,6 +109,7 @@ function Header() {
   const { user, isAuthenticated, logout } = useAuth()
   const { settings } = useSettings()
   useEffect(() => { setOpen(false) }, [pathname])
+  useBackClose(open, () => setOpen(false))   // on a phone, Back closes the menu
   useEffect(() => {  // while the phone menu is open the page behind it does not scroll, and Esc closes it
     if (!open) return undefined
     const close = (e) => { if (e.key === 'Escape') setOpen(false) }
@@ -141,6 +142,7 @@ function Header() {
               </button>
               {menu && (
                 <div onClick={() => setMenu(false)} className="absolute right-0 mt-2 w-56 rounded-md border border-navy/10 bg-ivory p-1 text-sm shadow-lg">
+                  <Link className="block rounded px-3 py-2 hover:bg-sand-soft" to="/trips">{t('My trips')}</Link>
                   <Link className="block rounded px-3 py-2 hover:bg-sand-soft" to="/account">{t('My account')}</Link>
                   <Link className="block rounded px-3 py-2 hover:bg-sand-soft" to="/partners/dashboard">{t('Partner dashboard')}</Link>
                   {user?.role === 'admin' && <Link className="block rounded px-3 py-2 hover:bg-sand-soft" to="/admin">{t('Admin dashboard')}</Link>}
@@ -163,7 +165,7 @@ function Header() {
             <nav className="flex-1 overflow-y-auto px-6 py-6" aria-label={t('Mobile navigation')}>
               <ul className="space-y-1">
                 {NAV.map(([label, to]) => (
-                  <li key={to}><NavLink to={to} className={({ isActive }) => `block rounded-md px-3 py-3 font-heading text-[22px] ${isActive ? 'bg-sand-soft text-navy' : 'text-navy/80 hover:bg-sand-soft'}`}>{t(label)}</NavLink></li>
+                  <li key={to}><NavLink to={to} replace className={({ isActive }) => `block rounded-md px-3 py-3 font-heading text-[22px] ${isActive ? 'bg-sand-soft text-navy' : 'text-navy/80 hover:bg-sand-soft'}`}>{t(label)}</NavLink></li>
                 ))}
               </ul>
               <div className="mt-6 border-t border-navy/10 pt-5">
@@ -187,7 +189,7 @@ function Header() {
             <div className="space-y-2 border-t border-navy/10 px-6 py-6">
               <Link to="/plan" className="btn-primary w-full">{t('Plan My Trip')}</Link>
               {isAuthenticated ? (
-                <><Link to="/account" className="btn-outline w-full">{t('My account')}</Link><button className="h-12 w-full text-[13px] text-ink" onClick={logout}>{t('Sign out')}</button></>
+                <><Link to="/trips" className="btn-primary w-full !bg-turquoise-deep">{t('My trips')}</Link><Link to="/account" className="btn-outline w-full">{t('My account')}</Link><button className="h-12 w-full text-[13px] text-ink" onClick={logout}>{t('Sign out')}</button></>
               ) : <Link to="/login" className="btn-outline w-full">{t('Sign In')}</Link>}
             </div>
           </aside>

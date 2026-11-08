@@ -137,7 +137,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.BookingRequest
         fields = "__all__"
-        read_only_fields = ["market"]
+        read_only_fields = ["market", "deposit_status", "deposit_amount", "deposit_currency", "deposit_txn", "deposit_payment_id", "deposit_paid_at", "deposit_refunded_at"]
 
     def to_representation(self, instance):
         from .names import service_name
@@ -155,10 +155,45 @@ ReviewSerializer = model_serializer(models.Review, read_only_fields=["status", "
 ReviewAdminSerializer = model_serializer(models.Review, read_only_fields=["created"])
 
 
+BONUS_TAGS = ("bonus", "exclusive", "gift")
+BONUS_LANGS = ("uz", "ru", "fr", "de", "es")
+
+
+def _photo(url):
+    url = str(url or "").strip()[:500]
+    return url if url.startswith(("https://", "http://", "/media/")) else ""
+
+
+def clean_bonuses(value):
+    """Bonuses come from the admin panel: keep only known fields, short texts and photo links that are real links."""
+    if not isinstance(value, list) or len(value) > 12:
+        raise serializers.ValidationError("A tour can have up to 12 bonuses.")
+    clean = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise serializers.ValidationError("Each bonus must be an object.")
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue   # an empty row is dropped
+        texts = lambda src: {"title": str(src.get("title") or "").strip()[:120], "text": str(src.get("text") or "").strip()[:2000], "duration": str(src.get("duration") or "").strip()[:60]}
+        i18n = {}
+        for lang, values in (item.get("i18n") or {}).items():
+            if lang in BONUS_LANGS and isinstance(values, dict):
+                t = {k: v for k, v in texts(values).items() if v}
+                if t:
+                    i18n[lang] = t
+        clean.append({**texts(item), "tag": item.get("tag") if item.get("tag") in BONUS_TAGS else "bonus", "image": _photo(item.get("image")),
+                      "gallery": [u for u in (_photo(x) for x in (item.get("gallery") or [])[:12]) if u], "i18n": i18n})
+    return clean
+
+
 class TourSerializer(model_serializer(models.Tour)):
     price_from_usd = serializers.DecimalField(max_digits=14, decimal_places=2, coerce_to_string=False)
     rating = serializers.DecimalField(max_digits=2, decimal_places=1, coerce_to_string=False)
     entrance_fee_usd = serializers.DecimalField(max_digits=14, decimal_places=2, coerce_to_string=False, allow_null=True, required=False)
+
+    def validate_bonuses(self, value):
+        return clean_bonuses(value)
 
 
 class BookingSubmitSerializer(serializers.ModelSerializer):
@@ -167,9 +202,9 @@ class BookingSubmitSerializer(serializers.ModelSerializer):
         fields = [
             "service_type", "service_slug", "service_title", "full_name", "email", "phone",
             "travel_date", "end_date", "guests", "details_summary", "special_requests",
-            "estimated_total_usd", "wants_guide",
+            "estimated_total_usd", "wants_guide", "arrival_date", "arrival_time", "meeting_place",
         ]
-        extra_kwargs = {"estimated_total_usd": {"required": False}}
+        extra_kwargs = {"estimated_total_usd": {"required": False}, "arrival_date": {"required": False}, "arrival_time": {"required": False}, "meeting_place": {"required": False}}
 
 
 class ArrivalSerializer(serializers.ModelSerializer):

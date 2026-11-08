@@ -13,6 +13,8 @@ import { About, Contact } from './pages/Info'
 import Legal from './pages/Legal'
 import Plan from './pages/Plan'
 import { Account, Login, Register, RequireAuth } from './pages/Auth'
+import Trips from './pages/Trips'
+import { TestPayment } from './components/Deposit'
 import { PartnerDashboard, PartnerRegister, PartnersHome } from './pages/Partners'
 import AdminLayout from './admin/AdminLayout'
 import { Bookings, Customers, Enquiries, Overview, Partners, Settings } from './admin/Pages'
@@ -74,6 +76,8 @@ createRoot(document.getElementById('root')).render(
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
+              <Route path="/trips" element={<RequireAuth><Trips /></RequireAuth>} />
+              <Route path="/pay/test/:reference" element={<RequireAuth><TestPayment /></RequireAuth>} />
               <Route path="/partners" element={<PartnersHome />} />
               <Route path="/partners/register" element={<PartnerRegister />} />
               <Route path="/partners/dashboard" element={<RequireAuth><PartnerDashboard /></RequireAuth>} />

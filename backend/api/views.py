@@ -16,7 +16,7 @@ from rest_framework.throttling import AnonRateThrottle
 
 from . import notifications
 
-from . import market, models, serializers as s
+from . import market, models, payments, serializers as s
 
 User = get_user_model()
 
@@ -144,8 +144,8 @@ def site_content(request):
         ser = s.SiteContentSerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(ser.data)
-    return Response(s.SiteContentSerializer(obj).data)
+        return Response({**ser.data, "deposit_provider": payments.provider()})
+    return Response({**s.SiteContentSerializer(obj).data, "deposit_provider": payments.provider()})
 
 
 @api_view(["POST"])
@@ -177,12 +177,24 @@ def newsletter(request):
 def submit_booking(request):
     if request.data.get("website"):  # a hidden field only robots fill in
         return Response({"reference": "", "status": "pending"}, status=201)
-    ser = s.BookingSubmitSerializer(data=request.data)
+    if not request.user.is_authenticated:   # no anonymous requests: every booking comes from a confirmed e-mail address
+        return Response({"error": "Please sign in to send a booking request.", "login_required": True}, status=401)
+    data = request.data.copy()
+    data["email"] = request.user.email or request.user.username
+    ser = s.BookingSubmitSerializer(data=data)
     if not ser.is_valid():
         return Response({"error": "Please check the form fields.", "fields": ser.errors}, status=400)
-    user = request.user if request.user.is_authenticated else None
     lang = (request.headers.get("X-Lang") or "en")[:5]
-    booking = ser.save(user=user, lang=lang)
+    booking = ser.save(user=request.user, lang=lang)
+    site = models.SiteContent.current()
+    if site.deposit_enabled and site.deposit_amount > 0:
+        # the team hears about the request once the deposit is paid (payments.mark_paid), so unpaid ones never reach them
+        try:
+            url = payments.start(booking, site)
+        except Exception:
+            booking.delete()
+            return Response({"error": "The payment could not be started. Please try again in a few minutes."}, status=502)
+        return Response({"reference": booking.reference, "status": booking.status, "payment_url": url}, status=201)
     notifications.booking_created(booking)
     return Response({"reference": booking.reference, "status": booking.status}, status=201)
 
@@ -216,11 +228,11 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = models.BookingRequest.objects.all()
         user = self.request.user
         if user.is_staff:
-            return qs
-        return qs.filter(email__iexact=user.email) | qs.filter(user=user)
+            return models.BookingRequest.objects.all()   # the team works with the site version it has open
+        mine = models.BookingRequest.everywhere   # a traveller's history covers the global and the local site
+        return (mine.filter(email__iexact=user.email) | mine.filter(user=user)).order_by("-created")
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
@@ -229,7 +241,46 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": "This request can no longer be cancelled."}, status=400)
         booking.status = "cancelled"
         booking.save(update_fields=["status"])
+        if booking.deposit_status == "paid":
+            with market.use(booking.market):
+                refund_now = models.SiteContent.current().deposit_refund_on_cancel
+            if refund_now:
+                try:
+                    payments.refund(booking)
+                except Exception:   # the team sees "Paid" on a cancelled booking and refunds it by hand
+                    pass
         notifications.booking_cancelled_by_traveller(booking)
+        return Response(s.BookingSerializer(booking, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def pay(self, request, pk=None):
+        """Pay the deposit of a request again (the first payment page was closed or failed)."""
+        booking = self.get_object()
+        if booking.status != "pending" or booking.deposit_status not in ("pending", "failed"):
+            return Response({"error": "This request does not wait for a payment."}, status=400)
+        with market.use(booking.market):
+            site = models.SiteContent.current()
+            try:
+                url = payments.start(booking, site)
+            except Exception:
+                return Response({"error": "The payment could not be started. Please try again in a few minutes."}, status=502)
+        return Response({"payment_url": url})
+
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAdminUser])
+    def deposit(self, request, pk=None):
+        """The team refunds the deposit or decides to keep it."""
+        booking = self.get_object()
+        try:
+            if request.data.get("action") == "refund":
+                payments.refund(booking)
+            elif request.data.get("action") == "keep":
+                payments.keep(booking)
+            else:
+                return Response({"error": "Unknown action."}, status=400)
+        except payments.PaymentError as error:
+            return Response({"error": str(error)}, status=400)
+        except Exception:
+            return Response({"error": "The payment service did not answer. Please try again."}, status=502)
         return Response(s.BookingSerializer(booking, context={"request": request}).data)
 
     @action(detail=True, methods=["patch"], permission_classes=[permissions.IsAdminUser])
@@ -243,6 +294,43 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
         if booking.status != before:
             notifications.booking_status_changed(booking)
         return Response(s.BookingSerializer(booking, context={"request": request}).data)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def octo_notify(request):
+    """Octo tells the site how a deposit payment ended. Only a correctly signed message changes a booking."""
+    data = request.data
+    booking = models.BookingRequest.everywhere.filter(deposit_txn=str(data.get("shop_transaction_id") or "")).first()
+    uuid, state = str(data.get("octo_payment_UUID") or ""), str(data.get("status") or "")
+    if not booking or not payments.valid_signature(uuid, state, data.get("signature")):
+        return Response({"ok": False}, status=403)
+    if booking.deposit_payment_id and booking.deposit_payment_id != uuid:
+        return Response({"ok": False}, status=403)
+    booking.deposit_payment_id = uuid
+    booking.save(update_fields=["deposit_payment_id"])
+    if state == "succeeded":
+        payments.mark_paid(booking)
+    elif state in ("canceled", "cancelled", "failed") and booking.deposit_status == "pending":
+        booking.deposit_status = "failed"
+        booking.save(update_fields=["deposit_status"])
+    return Response({"ok": True})
+
+
+@api_view(["POST"])
+def test_payment(request):
+    """Test mode only (no Octo keys yet): the traveller's own page pretends to pay or to give up. Never moves money."""
+    if payments.octo_ready():
+        return Response({"error": "Test payments are switched off."}, status=403)
+    booking = models.BookingRequest.everywhere.filter(reference=str(request.data.get("reference") or "").upper()).first()
+    if not booking or not (booking.user_id == request.user.id or request.user.is_staff) or booking.deposit_status not in ("pending", "failed"):
+        return Response({"error": "We could not find this payment."}, status=404)
+    if request.data.get("result") == "paid":
+        payments.mark_paid(booking)
+    else:
+        booking.deposit_status = "failed"
+        booking.save(update_fields=["deposit_status"])
+    return Response({"ok": True, "deposit_status": booking.deposit_status})
 
 
 class SavedItemViewSet(viewsets.ModelViewSet):
@@ -383,13 +471,125 @@ def _auth_response(user):
     return Response({"token": token.key, "user": s.UserSerializer(user).data})
 
 
+CODE_MINUTES = 15          # how long an e-mailed code works
+CODE_ATTEMPTS = 5          # wrong codes allowed before a new one must be asked for
+CODE_RESEND_SECONDS = 60   # a new code at most once a minute
+
+CODE_MAIL = {
+    "en": ("{code} is your ALI TRAVEL code", "Hello{name},\n\nYour code to confirm your e-mail address and create your ALI TRAVEL account:\n\n    {code}\n\n"
+           "It works for {minutes} minutes. If you did not ask for an account at alitravel.uz, simply ignore this e-mail.\n\nALI TRAVEL"),
+    "uz": ("{code} — ALI TRAVEL tasdiqlash kodi", "Assalomu alaykum{name}!\n\nElektron pochtangizni tasdiqlash va ALI TRAVEL akkauntini ochish uchun kod:\n\n    {code}\n\n"
+           "Kod {minutes} daqiqa amal qiladi. Agar alitravel.uz saytida akkaunt ochmoqchi bo'lmagan bo'lsangiz, bu xatga e'tibor bermang.\n\nALI TRAVEL"),
+    "ru": ("{code} — код ALI TRAVEL", "Здравствуйте{name}!\n\nКод для подтверждения почты и создания аккаунта ALI TRAVEL:\n\n    {code}\n\n"
+           "Код действует {minutes} минут. Если вы не создавали аккаунт на alitravel.uz, просто проигнорируйте это письмо.\n\nALI TRAVEL"),
+}
+
+
+def _code_hash(email, code):
+    import hashlib
+    import hmac
+    return hmac.new(settings.SECRET_KEY.encode(), f"{email}:{code}".encode(), hashlib.sha256).hexdigest()
+
+
+def _send_code(pending, lang):
+    """E-mail a fresh six-digit code. Raises when the mail could not be sent."""
+    from django.core.mail import send_mail
+    from django.utils import timezone
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    pending.code_hash, pending.attempts, pending.sent_at = _code_hash(pending.email, code), 0, timezone.now()
+    pending.save()
+    subject, body = CODE_MAIL.get(lang, CODE_MAIL["en"])
+    name = f", {pending.full_name}" if pending.full_name else ""
+    send_mail(subject.format(code=code), body.format(code=code, name=name, minutes=CODE_MINUTES), settings.DEFAULT_FROM_EMAIL, [pending.email], fail_silently=False)
+
+
+def _code_answer(pending):
+    return Response({"pending": True, "email": pending.email, "minutes": CODE_MINUTES, "resend_after": CODE_RESEND_SECONDS}, status=status.HTTP_202_ACCEPTED)
+
+
+class CodeThrottle(AnonRateThrottle):
+    scope = "email-code"
+    rate = "30/hour"
+
+
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @throttle_classes([RegisterThrottle])
 def register(request):
+    """Step 1 of creating an account: check the details and e-mail a code. The account is created by verify_email."""
+    from django.contrib.auth.hashers import make_password
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from django.utils import timezone
     ser = s.RegisterSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    return _auth_response(ser.save())
+    email, password = ser.validated_data["email"], ser.validated_data["password"]
+    try:
+        validate_password(password, User(username=email, email=email))
+    except ValidationError as error:
+        return Response({"error": error.messages[0], "fields": {"password": error.messages}}, status=400)
+    pending = models.PendingSignup.objects.filter(email=email).first()
+    if pending and (timezone.now() - pending.sent_at).total_seconds() < CODE_RESEND_SECONDS:
+        return Response({"error": "We have just sent you a code. Please wait a minute before asking for a new one."}, status=429)
+    pending = pending or models.PendingSignup(email=email)
+    pending.full_name = ser.validated_data.get("full_name", "").strip()
+    pending.password_hash = make_password(password)
+    try:
+        _send_code(pending, (request.headers.get("X-Lang") or "en")[:5])
+    except Exception:
+        pending.delete()
+        return Response({"error": "We could not send the code to this e-mail address. Please check it and try again."}, status=503)
+    return _code_answer(pending)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([CodeThrottle])
+def resend_code(request):
+    from django.utils import timezone
+    email = (request.data.get("email") or "").strip().lower()
+    pending = models.PendingSignup.objects.filter(email=email).first()
+    if not pending:
+        return Response({"error": "Please fill in the form again to get a new code."}, status=400)
+    if (timezone.now() - pending.sent_at).total_seconds() < CODE_RESEND_SECONDS:
+        return Response({"error": "We have just sent you a code. Please wait a minute before asking for a new one."}, status=429)
+    try:
+        _send_code(pending, (request.headers.get("X-Lang") or "en")[:5])
+    except Exception:
+        return Response({"error": "We could not send the code to this e-mail address. Please check it and try again."}, status=503)
+    return _code_answer(pending)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([CodeThrottle])
+def verify_email(request):
+    """Step 2: the right code creates the account and signs the person in."""
+    import hmac
+    from django.utils import timezone
+    email = (request.data.get("email") or "").strip().lower()
+    code = "".join(ch for ch in str(request.data.get("code") or "") if ch.isdigit())
+    pending = models.PendingSignup.objects.filter(email=email).first()
+    if not pending:
+        return Response({"error": "Please fill in the form again to get a new code."}, status=400)
+    if (timezone.now() - pending.sent_at).total_seconds() > CODE_MINUTES * 60:
+        return Response({"error": "The code has expired. Ask for a new code."}, status=400)
+    if pending.attempts >= CODE_ATTEMPTS:
+        return Response({"error": "Too many wrong codes. Ask for a new code."}, status=400)
+    if not hmac.compare_digest(pending.code_hash, _code_hash(email, code)):
+        pending.attempts += 1
+        pending.save(update_fields=["attempts"])
+        return Response({"error": "The code is not correct.", "attempts_left": max(CODE_ATTEMPTS - pending.attempts, 0)}, status=400)
+    if User.objects.filter(username=email).exists():
+        pending.delete()
+        return Response({"error": "An account with this email already exists."}, status=400)
+    first, _, last = pending.full_name.partition(" ")
+    user = User(username=email, email=email, first_name=first, last_name=last, password=pending.password_hash)
+    user.save()
+    pending.delete()
+    response = _auth_response(user)
+    response.status_code = status.HTTP_201_CREATED
+    return response
 
 
 @api_view(["POST"])
@@ -431,6 +631,8 @@ def change_credentials(request):
     ser = s.ChangeCredentialsSerializer(data=request.data, context={"user": user})
     ser.is_valid(raise_exception=True)
     email, password = ser.validated_data.get("new_email"), ser.validated_data.get("new_password")
+    if email and not user.is_staff:
+        return Response({"error": "To change the e-mail of your account, please contact us.", "fields": {"new_email": ["Not allowed."]}}, status=400)
     if not email and not password:
         return Response({"error": "Write a new login or a new password."}, status=400)
     if email:

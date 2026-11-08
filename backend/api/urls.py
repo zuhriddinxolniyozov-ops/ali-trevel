@@ -40,9 +40,13 @@ urlpatterns = [
     path("upload/", views.upload_image),
     path("texts/", views.site_texts),
     path("auth/register/", views.register),
+    path("auth/register/resend/", views.resend_code),
+    path("auth/verify-email/", views.verify_email),
     path("auth/login/", views.login),
     path("auth/logout/", views.logout),
     path("auth/me/", views.me),
     path("auth/credentials/", views.change_credentials),
     path("telegram/webhook/", telegram_webhook),
+    path("deposits/octo/notify/", views.octo_notify),
+    path("deposits/test/", views.test_payment),
 ]
