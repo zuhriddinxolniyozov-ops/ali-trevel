@@ -137,7 +137,8 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.BookingRequest
         fields = "__all__"
-        read_only_fields = ["market", "deposit_status", "deposit_amount", "deposit_currency", "deposit_txn", "deposit_payment_id", "deposit_paid_at", "deposit_refunded_at"]
+        read_only_fields = ["market", "deposit_status", "deposit_amount", "deposit_currency", "deposit_txn", "deposit_payment_id", "deposit_paid_at", "deposit_refunded_at",
+                           "verification_code", "verification_code_hash", "verification_sent_at", "verified_at"]
 
     def to_representation(self, instance):
         from .names import service_name

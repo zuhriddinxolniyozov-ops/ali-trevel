@@ -296,10 +296,15 @@ export function Settings() {
         <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy"><input type="checkbox" className="h-4 w-4 accent-navy" checked={!!current.deposit_enabled} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_enabled: e.target.checked }) }} />{t('Ask for a deposit after a booking request')}</label>
         <label className="label mt-4 max-w-xs">{t('Deposit amount')} ({isLocal ? "so'm" : 'USD'})<input type="number" min="0" step="any" className="input" value={current.deposit_amount ?? ''} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_amount: e.target.value }) }} />
           <span className="mt-1 block text-[11.5px] font-normal text-ink/80">{t('Octo refunds at least 1 USD (or the same in so\'m), so keep the deposit at that level or above.')}</span></label>
-        <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy"><input type="checkbox" className="h-4 w-4 accent-navy" checked={current.deposit_refund_on_cancel !== false} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_refund_on_cancel: e.target.checked }) }} />{t('Refund automatically when the traveller cancels')}</label>
-        <p className="mt-1 text-[12px] text-ink/80">{t('Off: a cancelled request keeps its deposit until you press “Refund the deposit” or “Do not refund” in Bookings.')}</p>
+        <label className=”mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy”><input type=”checkbox” className=”h-4 w-4 accent-navy” checked={current.deposit_refund_on_cancel !== false} onChange={(e) => { setSaved(false); setForm({ ...current, deposit_refund_on_cancel: e.target.checked }) }} />{t('Refund automatically when the traveller cancels')}</label>
+        <p className=”mt-1 text-[12px] text-ink/80”>{t('Off: a cancelled request keeps its deposit until you press “Refund the deposit” or “Do not refund” in Bookings.')}</p>
       </fieldset>
-      <div className="mt-6 flex items-center gap-3"><button className="btn-primary">{t('Save settings')}</button>{saved && <span className="text-[14px] text-turquoise-deep">{t('Saved')}</span>}</div>
+      <fieldset className=”mt-8 rounded-sm border border-navy/12 p-4”>
+        <legend className=”px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink”>{t('Email verification for bookings')}</legend>
+        <p className=”text-[13px] text-ink”>{t('When enabled, travellers must verify their e-mail with a code before a booking request is saved. This stops fake bookings and spam.')}</p>
+        <label className=”mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-navy”><input type=”checkbox” className=”h-4 w-4 accent-navy” checked={!!current.booking_verification_enabled} onChange={(e) => { setSaved(false); setForm({ ...current, booking_verification_enabled: e.target.checked }) }} />{t('Require email verification for bookings')}</label>
+      </fieldset>
+      <div className=”mt-6 flex items-center gap-3”><button className=”btn-primary”>{t('Save settings')}</button>{saved && <span className=”text-[14px] text-turquoise-deep”>{t('Saved')}</span>}</div>
     </form>
   )
 }

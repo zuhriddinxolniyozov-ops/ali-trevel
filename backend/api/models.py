@@ -124,6 +124,7 @@ class SiteContent(MarketScoped):
     deposit_enabled = models.BooleanField(default=False)
     deposit_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("1.00"))
     deposit_refund_on_cancel = models.BooleanField(default=True)   # a traveller who cancels gets it back at once
+    booking_verification_enabled = models.BooleanField(default=False)   # booking requires email code verification
 
     @classmethod
     def current(cls):
@@ -321,6 +322,10 @@ class BookingRequest(MarketScoped):
     deposit_paid_at = models.DateTimeField(null=True, blank=True)
     deposit_refunded_at = models.DateTimeField(null=True, blank=True)
     wants_guide = models.BooleanField(default=False)  # local site: the guide is not in the price; the traveller asked for one (extra payment)
+    verification_code = models.CharField(max_length=6, blank=True)   # 6-digit email verification code (when booking_verification_enabled)
+    verification_code_hash = models.CharField(max_length=64, blank=True)  # HMAC-SHA256 of the code
+    verification_sent_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)  # when the email was verified; deposit starts after this
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:

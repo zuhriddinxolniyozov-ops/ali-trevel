@@ -37,6 +37,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
   const [message, setMessage] = useState('')
   const [reference, setReference] = useState('')
   const [sent, setSent] = useState(null)
+  const [verificationCode, setVerificationCode] = useState('')
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
   const hotel = hotels.find((h) => h.slug === f.hotel)
   const upgrade = stayIncluded && (f.hotel_class || f.car_class)  // a higher class than the one in the price: costs extra
@@ -78,13 +79,48 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
         website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, wants_guide: guideOptional && f.wants_guide, ...extra,
         details_summary: [extra.details_summary, ...lines].filter(Boolean).join('\n\n'),
       })
+      if (res.verification_required) {
+        setReference(res.reference)
+        setState('verifying')
+        setVerificationCode('')
+        setMessage('')
+        return
+      }
       if (goToPayment(res)) return   // the deposit first; the team hears about the request once it is paid
       setReference(res.reference); setSent({ guests: Number(f.guests) || 1, perPerson: perPersonAt(Number(f.guests) || 1), total }); setState('done')
       onSubmitted?.({ reference: res.reference, date: f.travel_date, guests: Number(f.guests) || 1, hotel: hotel?.name })
     } catch (ex) { setState('error'); setMessage(ex.message) }
   }
 
+  async function submitVerification(e) {
+    e.preventDefault()
+    if (verificationCode.trim().length < 4) { setMessage(t('Please enter the code from your email.')); return }
+    setState('saving'); setMessage('')
+    try {
+      const res = await api.post('/bookings-verify/', {
+        reference: reference,
+        code: verificationCode.trim(),
+      })
+      if (goToPayment(res)) return
+      setSent({ guests: Number(f.guests) || 1, perPerson: perPersonAt(Number(f.guests) || 1), total }); setState('done')
+      onSubmitted?.({ reference, date: f.travel_date, guests: Number(f.guests) || 1, hotel: hotel?.name })
+    } catch (ex) { setState('verifying'); setMessage(ex.message) }
+  }
+
   if (!user) return <SignInToBook />
+  if (state === 'verifying') {
+    return (
+      <form onSubmit={submitVerification} className="scroll-mt-24 rounded-sm border border-navy/12 bg-sand-soft/40 p-5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">{t('Verify your email')}</p>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-ink">{t('We sent a code to your email. Enter it below to confirm the booking request.')}</p>
+        <div className="relative mt-4 space-y-3">
+          <Field label={t('Verification code')}><input type="text" className="input input-monospace" placeholder={t('123456')} maxLength="6" value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} /></Field>
+          {message && <p role="alert" className="text-[13px] text-destructive">{message}</p>}
+        </div>
+        <button type="submit" className="btn-primary mt-4" disabled={state === 'saving'}>{state === 'saving' ? <Spinner /> : t('Verify and confirm')}</button>
+      </form>
+    )
+  }
   if (state === 'done') {
     return (
       <div>

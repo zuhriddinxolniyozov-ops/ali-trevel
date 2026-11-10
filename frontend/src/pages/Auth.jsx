@@ -46,21 +46,12 @@ export function Login() {
 
 export function Register() {
   const t = useT()
-  const { register, verifyEmail, resendCode, isAuthenticated } = useAuth()
+  const { register, isAuthenticated } = useAuth()
   const nav = useNavigate()
   const from = useLocation().state?.from
   const [f, setF] = useState({ full_name: '', email: '', password: '' })
-  const [step, setStep] = useState('form')   // form -> code
-  const [code, setCode] = useState('')
-  const [wait, setWait] = useState(0)        // seconds until a new code may be asked for
   const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    if (wait <= 0) return undefined
-    const timer = setTimeout(() => setWait((w) => w - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [wait])
   if (isAuthenticated) return <Navigate to={from || '/account'} replace />
   const email = f.email.trim().toLowerCase()
 
@@ -68,53 +59,23 @@ export function Register() {
     e.preventDefault()
     if (!EMAIL_RE.test(email)) return setError('A valid email is required.')
     if (f.password.length < 8) return setError('This password is too short. It must contain at least 8 characters.')
-    setBusy(true); setError(''); setInfo('')
+    setBusy(true); setError('')
     try {
-      const res = await register({ ...f, email })
-      if (res?.pending) { setStep('code'); setCode(''); setWait(res.resend_after || 60) } else nav(from || '/account', { replace: true })
+      await register({ ...f, email })
+      nav(from || '/account', { replace: true })
     } catch (ex) { setError(ex.message) } finally { setBusy(false) }
-  }
-  async function confirm(e) {
-    e.preventDefault()
-    if (code.replace(/\D/g, '').length !== 6) return setError('Enter the 6-digit code from the e-mail.')
-    setBusy(true); setError(''); setInfo('')
-    try { await verifyEmail(email, code); nav(from || '/account', { replace: true }) } catch (ex) { setError(ex.message) } finally { setBusy(false) }
-  }
-  async function again() {
-    setBusy(true); setError(''); setInfo('')
-    try { await resendCode(email); setInfo('A new code was sent.'); setWait(60); setCode('') } catch (ex) { setError(ex.message) } finally { setBusy(false) }
   }
 
   const footer = <>{t('Already registered?')} <Link to="/login" state={{ from }} className="text-turquoise-deep">{t('Sign in')}</Link></>
-  if (step === 'code') {
-    return (
-      <AuthShell title="Confirm your e-mail" footer={footer}>
-        <p className="mt-4 flex gap-2.5 rounded-sm bg-sand-soft/70 p-3 text-[13.5px] leading-relaxed text-navy"><MailCheck className="mt-0.5 h-5 w-5 shrink-0 text-turquoise-deep" aria-hidden="true" />
-          <span>{t('We sent a 6-digit code to {email}. Enter it below to confirm your e-mail address.', { email })}</span></p>
-        <form onSubmit={confirm} className="mt-5 space-y-4">
-          <Field label="Code from the e-mail"><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus className="input text-center font-mono text-[24px] tracking-[0.5em]"
-            value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="••••••" /></Field>
-          {error && <p role="alert" className="text-[12px] text-destructive">{t(error)}</p>}
-          {info && <p role="status" className="text-[12px] text-turquoise-deep">{t(info)}</p>}
-          <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}{t('Confirm and create account')}</button>
-        </form>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[13px]">
-          <button type="button" onClick={again} disabled={busy || wait > 0} className="font-medium text-turquoise-deep disabled:text-ink/60">{wait > 0 ? t('Send a new code in {n} s', { n: wait }) : t('Send a new code')}</button>
-          <button type="button" onClick={() => { setStep('form'); setError(''); setInfo('') }} className="text-ink underline-offset-2 hover:underline">{t('Change e-mail')}</button>
-        </div>
-        <p className="mt-3 text-[12px] text-ink/80">{t('Check your spam folder if the e-mail does not arrive within a few minutes.')}</p>
-      </AuthShell>
-    )
-  }
   return (
     <AuthShell title="Create account" footer={footer}>
-      <p className="mt-3 text-[13px] leading-relaxed text-ink">{t('We send a code to your e-mail to confirm it. Bookings are made from a confirmed account.')}</p>
+      <p className="mt-3 text-[13px] leading-relaxed text-ink">{t('Create an account with your email and password.')}</p>
       <form onSubmit={submit} className="mt-5 space-y-4">
         <Field label="Full name"><input className="input" autoComplete="name" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></Field>
         <Field label="Email"><input type="email" autoComplete="email" className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field label="Password (min. 8 characters)"><input type="password" autoComplete="new-password" minLength={8} className="input" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         {error && <p role="alert" className="text-[12px] text-destructive">{t(error)}</p>}
-        <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}{t('Send the code')}</button>
+        <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}{t('Create account')}</button>
       </form>
     </AuthShell>
   )

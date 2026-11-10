@@ -187,6 +187,20 @@ def submit_booking(request):
     lang = (request.headers.get("X-Lang") or "en")[:5]
     booking = ser.save(user=request.user, lang=lang)
     site = models.SiteContent.current()
+
+    # Email verification: if enabled, send a code and pause the booking
+    if site.booking_verification_enabled:
+        code = secrets.token_hex(3).upper()  # 6-digit hex
+        import hmac, hashlib
+        code_hash = hmac.new(settings.SECRET_KEY.encode(), code.encode(), hashlib.sha256).hexdigest()
+        booking.verification_code = code
+        booking.verification_code_hash = code_hash
+        booking.verification_sent_at = models.datetime.datetime.now()
+        booking.save(update_fields=["verification_code", "verification_code_hash", "verification_sent_at"])
+        notifications.booking_verification_code(booking, code)
+        return Response({"reference": booking.reference, "status": booking.status, "verification_required": True}, status=201)
+
+    # Normal flow: deposit or notification
     if site.deposit_enabled and site.deposit_amount > 0:
         # the team hears about the request once the deposit is paid (payments.mark_paid), so unpaid ones never reach them
         try:
@@ -197,6 +211,42 @@ def submit_booking(request):
         return Response({"reference": booking.reference, "status": booking.status, "payment_url": url}, status=201)
     notifications.booking_created(booking)
     return Response({"reference": booking.reference, "status": booking.status}, status=201)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([BookingThrottle])
+def verify_booking_code(request):
+    """Verify the email code sent after booking; if correct, enable the deposit or notify the team."""
+    import hmac, hashlib
+    reference = str(request.data.get("reference") or "").strip().upper()
+    code = "".join(ch for ch in str(request.data.get("code") or "") if ch.isalnum())[:6]
+    booking = models.BookingRequest.objects.filter(reference=reference).first() if reference else None
+    if not booking or booking.status in ("cancelled", "completed"):
+        return Response({"error": "We could not find this booking."}, status=404)
+    if not booking.verification_code_hash:
+        return Response({"error": "This booking does not require email verification."}, status=400)
+    if booking.verified_at:
+        return Response({"error": "This booking has already been verified."}, status=400)
+    # check the code
+    code_hash = hmac.new(settings.SECRET_KEY.encode(), code.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(code_hash, booking.verification_code_hash):
+        return Response({"error": "The code is incorrect. Please try again."}, status=400)
+    # verified; clear the code and proceed with deposit or notification
+    booking.verified_at = models.datetime.datetime.now()
+    booking.verification_code = ""
+    booking.verification_code_hash = ""
+    booking.save(update_fields=["verified_at", "verification_code", "verification_code_hash"])
+
+    site = models.SiteContent.current()
+    if site.deposit_enabled and site.deposit_amount > 0:
+        try:
+            url = payments.start(booking, site)
+        except Exception:
+            return Response({"error": "The payment could not be started. Please try again in a few minutes."}, status=502)
+        return Response({"ok": True, "payment_url": url})
+    notifications.booking_created(booking)
+    return Response({"ok": True})
 
 
 @api_view(["POST"])
@@ -516,30 +566,26 @@ class CodeThrottle(AnonRateThrottle):
 @permission_classes([permissions.AllowAny])
 @throttle_classes([RegisterThrottle])
 def register(request):
-    """Step 1 of creating an account: check the details and e-mail a code. The account is created by verify_email."""
+    """Create an account directly: email + password. No email code verification."""
     from django.contrib.auth.hashers import make_password
     from django.contrib.auth.password_validation import validate_password
     from django.core.exceptions import ValidationError
-    from django.utils import timezone
     ser = s.RegisterSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     email, password = ser.validated_data["email"], ser.validated_data["password"]
+    if User.objects.filter(username=email).exists():
+        return Response({"error": "This email is already registered."}, status=400)
     try:
         validate_password(password, User(username=email, email=email))
     except ValidationError as error:
         return Response({"error": error.messages[0], "fields": {"password": error.messages}}, status=400)
-    pending = models.PendingSignup.objects.filter(email=email).first()
-    if pending and (timezone.now() - pending.sent_at).total_seconds() < CODE_RESEND_SECONDS:
-        return Response({"error": "We have just sent you a code. Please wait a minute before asking for a new one."}, status=429)
-    pending = pending or models.PendingSignup(email=email)
-    pending.full_name = ser.validated_data.get("full_name", "").strip()
-    pending.password_hash = make_password(password)
-    try:
-        _send_code(pending, (request.headers.get("X-Lang") or "en")[:5])
-    except Exception:
-        pending.delete()
-        return Response({"error": "We could not send the code to this e-mail address. Please check it and try again."}, status=503)
-    return _code_answer(pending)
+    # Create the account directly (no email verification)
+    user = User.objects.create_user(username=email, email=email, password=password)
+    user.full_name = ser.validated_data.get("full_name", "").strip()
+    user.save()
+    # Return the auth token so the user is signed in
+    token, _ = Token.objects.get_or_create(user=user)
+    return Response({"username": user.username, "email": user.email, "token": token.key}, status=201)
 
 
 @api_view(["POST"])
