@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BadgePercent, Bell, MapPinned, Building2, CalendarDays, Calculator, Coins, Handshake, Scale, ChevronDown, Compass, ExternalLink, FileText, Globe, KeyRound, Layers, LayoutGrid, Mail, PencilRuler, Search, Settings, Star, Users } from 'lucide-react'
+import { BadgePercent, Bell, TicketPercent, MapPinned, Building2, CalendarDays, Calculator, Coins, Handshake, Scale, ChevronDown, Compass, ExternalLink, FileText, Globe, KeyRound, Layers, LayoutGrid, Mail, PencilRuler, Search, Settings, Star, Users } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/admin/tours', label: 'Tours & packages', icon: Compass },
   { to: '/admin/listings', label: 'Other listings', icon: Layers },
   { to: '/admin/promotions', label: 'Promotions', icon: BadgePercent },
+  { to: '/admin/promo-codes', label: 'Promo codes', icon: TicketPercent },
   { to: '/admin/reviews', label: 'Reviews', icon: Star },
   { to: '/admin/group-pricing', label: 'Group pricing', icon: Coins },
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays, badge: 'pending' },

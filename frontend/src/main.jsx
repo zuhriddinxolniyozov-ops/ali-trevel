@@ -25,6 +25,7 @@ import Content from './admin/Content'
 import SiteEditor from './admin/SiteEditor'
 import Accounting from './admin/Accounting'
 import Promotions from './admin/Promotions'
+import PromoCodes from './admin/PromoCodes'
 import Reviews from './admin/Reviews'
 import GroupPricing from './admin/GroupPricing'
 import Credits from './pages/Credits'
@@ -43,6 +44,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="site" element={<SiteEditor />} />
               <Route path="accounting" element={<Accounting />} />
               <Route path="promotions" element={<Promotions />} />
+              <Route path="promo-codes" element={<PromoCodes />} />
               <Route path="reviews" element={<Reviews />} />
               <Route path="group-pricing" element={<GroupPricing />} />
               <Route path="legal" element={<LegalAdmin />} />

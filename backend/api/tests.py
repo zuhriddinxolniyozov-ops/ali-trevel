@@ -2238,3 +2238,51 @@ class TourBonusTests(APITestCase):
         self.assertNotIn("extra", saved[0])
         too_many = self.client.patch("/api/tours/samarkand-city-tour/", {"bonuses": [bonus] * 13}, format="json")
         self.assertEqual(too_many.status_code, 400)
+
+
+class PromoCodeTests(APITestCase):
+    """The team gives a traveller a promo code; typed in the booking form it takes its percentage off the estimate."""
+
+    body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Ali", "phone": "+998 90 123 45 67",
+            "travel_date": "2027-05-01", "guests": 2, "estimated_total_usd": "588.00"}
+
+    def setUp(self):
+        booking_codes_off()
+        cache.clear()
+        self.boss = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
+        self.traveller = get_user_model().objects.create_user("t@example.com", "t@example.com", "x")
+
+    def test_only_the_team_manages_codes_and_codes_are_clean(self):
+        self.client.force_authenticate(self.traveller)
+        self.assertEqual(self.client.post("/api/promo-codes/", {"code": "x", "percent": 10}, format="json").status_code, 403)
+        self.client.force_authenticate(self.boss)
+        made = self.client.post("/api/promo-codes/", {"code": " come back 10 ", "percent": 10, "note": "Smith family"}, format="json")
+        self.assertEqual(made.status_code, 201)
+        self.assertEqual(made.json()["code"], "COMEBACK10")
+        self.assertEqual(self.client.post("/api/promo-codes/", {"code": "comeback10", "percent": 5}, format="json").status_code, 400)   # already exists
+        self.assertEqual(self.client.post("/api/promo-codes/", {"code": "BIG", "percent": 95}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/promo-codes/", {"code": "a!", "percent": 5}, format="json").status_code, 400)
+
+    def test_a_code_takes_its_percentage_off_and_the_team_sees_it(self):
+        models.PromoCode.objects.create(code="FRIEND15", percent=15)
+        self.client.force_authenticate(self.traveller)
+        self.assertEqual(self.client.post("/api/promo-code-check/", {"code": "friend15"}, format="json").json(), {"code": "FRIEND15", "percent": 15})
+        self.assertEqual(self.client.post("/api/promo-code-check/", {"code": "NOPE"}, format="json").status_code, 404)
+        with mock.patch("api.notifications._tell_the_team") as team, mock.patch("api.notifications._send_email"), mock.patch("api.notifications._background", side_effect=lambda fn, *a, **k: fn(*a, **k)):
+            made = self.client.post("/api/bookings-submit/", {**self.body, "promo_code": " friend15"}, format="json")
+        self.assertEqual(made.status_code, 201)
+        booking = models.BookingRequest.objects.get(reference=made.json()["reference"])
+        self.assertEqual((booking.promo_code, booking.promo_percent, str(booking.discount_usd)), ("FRIEND15", 15, "88.20"))
+        self.assertIn("FRIEND15 (-15%)", team.call_args.kwargs["telegram_html"])
+        self.assertIn("Taxminiy jami:</b> $500", team.call_args.kwargs["telegram_html"])   # 588 - 15%, in whole dollars
+        self.client.force_authenticate(self.boss)
+        self.assertEqual(self.client.get("/api/promo-codes/").json()[0]["uses"], 1)
+
+    def test_an_unknown_or_paused_code_stops_the_booking(self):
+        models.PromoCode.objects.create(code="OLD", percent=20, active=False)
+        self.client.force_authenticate(self.traveller)
+        for code in ("OLD", "MADEUP"):
+            answer = self.client.post("/api/bookings-submit/", {**self.body, "promo_code": code}, format="json")
+            self.assertEqual(answer.status_code, 400)
+            self.assertIn("promo_code", answer.json()["fields"])
+        self.assertFalse(models.BookingRequest.objects.exists())

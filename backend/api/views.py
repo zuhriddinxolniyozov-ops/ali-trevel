@@ -13,7 +13,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from . import notifications
 
@@ -185,8 +185,18 @@ def submit_booking(request):
     ser = s.BookingSubmitSerializer(data=data)
     if not ser.is_valid():
         return Response({"error": "Please check the form fields.", "fields": ser.errors}, status=400)
+    promo = None
+    if str(request.data.get("promo_code") or "").strip():
+        promo = models.PromoCode.find(request.data.get("promo_code"))
+        if not promo:
+            return Response({"error": "This promo code is not valid.", "fields": {"promo_code": ["Not valid."]}}, status=400)
     lang = (request.headers.get("X-Lang") or "en")[:5]
     booking = ser.save(user=request.user, lang=lang)
+    if promo:
+        from decimal import Decimal
+        booking.promo_code, booking.promo_percent = promo.code, promo.percent
+        booking.discount_usd = (booking.estimated_total_usd * promo.percent / 100).quantize(Decimal("0.01"))
+        booking.save(update_fields=["promo_code", "promo_percent", "discount_usd"])
     site = models.SiteContent.current()
 
     # Email verification: if enabled, send a code and pause the booking
@@ -256,6 +266,35 @@ def verify_booking_code(request):
         return Response({"ok": True, "reference": booking.reference, "payment_url": url})
     notifications.booking_created(booking)
     return Response({"ok": True, "reference": booking.reference})
+
+
+class PromoAnonThrottle(AnonRateThrottle):
+    scope = "promo-anon"
+    rate = "30/hour"
+
+
+class PromoUserThrottle(UserRateThrottle):
+    scope = "promo-user"
+    rate = "30/hour"
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([PromoAnonThrottle, PromoUserThrottle])
+def check_promo_code(request):
+    """The booking form asks whether a promo code works before the request is sent."""
+    promo = models.PromoCode.find(request.data.get("code"))
+    if not promo:
+        return Response({"error": "This promo code is not valid."}, status=404)
+    return Response({"code": promo.code, "percent": promo.percent})
+
+
+class PromoCodeViewSet(viewsets.ModelViewSet):
+    """Admin: the promo codes the team gives to travellers."""
+
+    queryset = models.PromoCode.objects.all()
+    serializer_class = s.PromoCodeSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 
 @api_view(["POST"])

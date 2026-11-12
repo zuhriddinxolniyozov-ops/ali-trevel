@@ -138,7 +138,7 @@ class BookingSerializer(serializers.ModelSerializer):
         model = models.BookingRequest
         fields = "__all__"
         read_only_fields = ["market", "deposit_status", "deposit_amount", "deposit_currency", "deposit_txn", "deposit_payment_id", "deposit_paid_at", "deposit_refunded_at",
-                           "verification_code", "verification_code_hash", "verification_sent_at", "verified_at"]
+                           "verification_code", "verification_code_hash", "verification_sent_at", "verified_at", "promo_code", "promo_percent"]
 
     def to_representation(self, instance):
         from .names import service_name
@@ -206,6 +206,30 @@ class BookingSubmitSerializer(serializers.ModelSerializer):
             "estimated_total_usd", "wants_guide", "arrival_date", "arrival_time", "meeting_place",
         ]
         extra_kwargs = {"estimated_total_usd": {"required": False}, "arrival_date": {"required": False}, "arrival_time": {"required": False}, "meeting_place": {"required": False}}
+
+
+class PromoCodeSerializer(serializers.ModelSerializer):
+    uses = serializers.SerializerMethodField()   # booking requests that used the code (and reached the team)
+
+    class Meta:
+        model = models.PromoCode
+        fields = ["id", "code", "percent", "active", "note", "created", "uses"]
+        read_only_fields = ["created"]
+        extra_kwargs = {"code": {"validators": []}}
+
+    def get_uses(self, obj):
+        return models.BookingRequest.everywhere.filter(promo_code=obj.code, verification_code_hash="").count()
+
+    def validate_code(self, value):
+        code = models.PromoCode.clean_code(value)
+        if not re.fullmatch(r"[A-Z0-9_-]{3,30}", code):
+            raise serializers.ValidationError("Use 3 to 30 letters or digits (also - or _), without spaces.")
+        same = models.PromoCode.objects.filter(code=code)
+        if self.instance:
+            same = same.exclude(pk=self.instance.pk)
+        if same.exists():
+            raise serializers.ValidationError("This promo code already exists.")
+        return code
 
 
 class ArrivalSerializer(serializers.ModelSerializer):

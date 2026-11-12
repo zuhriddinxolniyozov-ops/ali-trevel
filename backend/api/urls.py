@@ -19,6 +19,7 @@ router.register("promotions", views.PromotionViewSet, basename="promotion")
 router.register("reviews", views.ReviewViewSet, basename="review")
 router.register("legal", views.LegalPageViewSet, basename="legal")
 router.register("expenses", accounting.ExpenseViewSet, basename="expense")
+router.register("promo-codes", views.PromoCodeViewSet, basename="promo-code")
 
 urlpatterns = [
     path("", include(router.urls)),
@@ -27,6 +28,7 @@ urlpatterns = [
     path("newsletter/", views.newsletter),
     path("bookings-submit/", views.submit_booking),
     path("bookings-verify/", views.verify_booking_code),
+    path("promo-code-check/", views.check_promo_code),
     path("bookings-arrival/", views.booking_arrival),
     path("admin-stats/", views.admin_stats),
     path("customers/", views.customers),

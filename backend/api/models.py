@@ -1,4 +1,5 @@
 import datetime
+import re
 import secrets
 from decimal import Decimal
 
@@ -326,6 +327,8 @@ class BookingRequest(MarketScoped):
     verification_code_hash = models.CharField(max_length=64, blank=True)  # HMAC-SHA256 of the code
     verification_sent_at = models.DateTimeField(null=True, blank=True)
     verified_at = models.DateTimeField(null=True, blank=True)  # when the email was verified; deposit starts after this
+    promo_code = models.CharField(max_length=30, blank=True)   # a code the team gave the traveller (PromoCode); its discount is in discount_usd
+    promo_percent = models.PositiveSmallIntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -335,6 +338,30 @@ class BookingRequest(MarketScoped):
         if not self.reference:
             self.reference = "AT-" + secrets.token_hex(3).upper()
         super().save(*args, **kwargs)
+
+
+class PromoCode(models.Model):
+    """A discount code the team hands to a traveller (for a return trip, or to pass on to a friend), typed in the booking form.
+    One list for the global and the local site."""
+
+    code = models.CharField(max_length=30, unique=True)   # kept in capitals; travellers may type it in any case
+    percent = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(90)])
+    active = models.BooleanField(default=True)
+    note = models.CharField(max_length=200, blank=True)   # for the team: who it was given to
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created"]
+
+    @staticmethod
+    def clean_code(value):
+        return re.sub(r"\s+", "", str(value or "")).upper()
+
+    @classmethod
+    def find(cls, value):
+        """The active code a traveller typed, or None."""
+        code = cls.clean_code(value)
+        return cls.objects.filter(code=code, active=True).first() if code else None
 
 
 class ContactMessage(MarketScoped):

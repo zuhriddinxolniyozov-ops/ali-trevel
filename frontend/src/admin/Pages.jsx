@@ -97,7 +97,7 @@ export function Bookings() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button onClick={() => setOpen(open === b.id ? null : b.id)} className="min-w-0 text-left">
                 <p className="flex flex-wrap items-center gap-2 text-[16px] font-medium">{b.service_title_local || b.service_title}<DepositBadge b={b} /></p>
-                <p className="text-[13px] text-ink"><span className="font-mono">{b.reference}</span> · {b.full_name} · {b.travel_date || t('date TBC')} · {b.guests} {t('Guests')}{Number(b.estimated_total_usd) > 0 && ` · ${t('est.')} ${money(b.estimated_total_usd)}`}</p>
+                <p className="text-[13px] text-ink"><span className="font-mono">{b.reference}</span> · {b.full_name} · {b.travel_date || t('date TBC')} · {b.guests} {t('Guests')}{Number(b.estimated_total_usd) > 0 && ` · ${t('est.')} ${money(b.estimated_total_usd - (b.discount_usd || 0))}`}{b.promo_code && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 font-mono text-[11px] text-emerald-900">🎟 {b.promo_code} −{b.promo_percent}%</span>}</p>
               </button>
               <select value={b.status} onChange={(e) => update(b, { status: e.target.value })} className="h-10 rounded-full border border-navy/15 bg-white px-3 text-[14px]">{BOOKING_STATUSES.map((s) => <option key={s} value={s}>{t(cap(s))}</option>)}</select>
             </div>

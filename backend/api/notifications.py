@@ -176,17 +176,19 @@ def _booking_data(booking):
     team_email = (site.email if site and site.email else "") or "alitravel004@gmail.com"
     from .market import LOCAL, money
     local = getattr(booking, "market", "") == LOCAL
-    total = f"\nEstimated total: {money(booking.estimated_total_usd, booking.market)} (sample rate, confirmed by our team).\n" if booking.estimated_total_usd else ""
+    net = booking.estimated_total_usd - (booking.discount_usd or 0)   # after the promo code, when one was used
+    promo = f"{booking.promo_code} (-{booking.promo_percent}%)" if booking.promo_code else ""
+    total = (f"\nEstimated total: {money(net, booking.market)}" + (f", promo code {promo}" if promo else "") + " (sample rate, confirmed by our team).\n") if booking.estimated_total_usd else ""
     return {
         "ref": booking.reference, "name": booking.full_name, "email": booking.email, "phone": booking.phone, "service": booking.service_title,
         "date": booking.travel_date.isoformat() if booking.travel_date else "", "guests": booking.guests, "lang": booking.lang or "en",
         "details": (booking.details_summary or "")[:1500], "requests": (booking.special_requests or "")[:600], "status": booking.status,
-        "total": money(booking.estimated_total_usd, booking.market) if booking.estimated_total_usd else "-", "phone_team": phone, "telegram_link": telegram_link, "team_email": team_email, "total_line": total,
+        "total": (money(net, booking.market) + (f" (promo code {promo})" if promo else "")) if booking.estimated_total_usd else "-", "promo": promo, "phone_team": phone, "telegram_link": telegram_link, "team_email": team_email, "total_line": total,
         "review_url": f"{settings.SITE_URL}/tours/{booking.service_slug}" if booking.service_slug else settings.SITE_URL,
         "chat": booking.telegram_chat_id, "source": "Telegram bot" if booking.telegram_chat_id else ("Local website (so'm)" if local else "Website"), "local": local,
         "type": booking.service_type, "end": booking.end_date.strftime("%d.%m.%Y") if booking.end_date else "",
         "service_uz": uz_name(booking.service_type, booking.service_slug, booking.service_title),
-        "estimate": money(booking.estimated_total_usd, booking.market, decimals=False) if booking.estimated_total_usd else "",
+        "estimate": money(net, booking.market, decimals=False) if booking.estimated_total_usd else "",
         "meeting": " ".join(x for x in (booking.arrival_date.strftime("%d.%m.%Y") if booking.arrival_date else "", booking.arrival_time.strftime("%H:%M") if booking.arrival_time else "") if x)
                    + (f" · {booking.meeting_place}" if booking.meeting_place else "") if booking.meeting_place else "",
     }
@@ -196,7 +198,8 @@ def _traveller_text(kind, data):
     subject, body = _template(kind, data["lang"])
     fields = _fields(data)
     if data["lang"] != "en" and data["lang"] in TEXT[kind]:
-        fields["total"] = fields["total"].replace("Estimated total", {"uz": "Taxminiy jami", "ru": "Ориентировочная сумма"}.get(data["lang"], "Estimated total")).replace(
+        fields["total"] = fields["total"].replace("promo code", {"uz": "promokod", "ru": "промокод"}.get(data["lang"], "promo code")).replace(
+            "Estimated total", {"uz": "Taxminiy jami", "ru": "Ориентировочная сумма"}.get(data["lang"], "Estimated total")).replace(
             "(sample rate, confirmed by our team)", {"uz": "(namunaviy tarif, jamoamiz tasdiqlaydi)", "ru": "(примерный тариф, подтверждается нашей командой)"}.get(data["lang"], ""))
     return subject.format(**fields), body.format(**fields)
 
@@ -240,6 +243,8 @@ def _booking_html(data):
              f"👥 <b>Mehmonlar:</b> {data['guests']}"]
     if data["estimate"]:
         lines.append(f"💵 <b>Taxminiy jami:</b> {data['estimate']} <i>(namunaviy narx, jamoa tasdiqlaydi)</i>")
+    if data.get("promo"):
+        lines.append(f"🎟 <b>Promokod:</b> {e(data['promo'])}")
     if data.get("meeting"):
         lines.append(f"📍 <b>Uchrashuv:</b> {e(data['meeting'])}")
     lines += ["", f"👤 <b>Ism:</b> {e(data['name'])}", f"📞 <b>Telefon:</b> {e(data['phone'])}"]

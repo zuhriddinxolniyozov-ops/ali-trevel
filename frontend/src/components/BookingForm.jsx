@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleCheck } from 'lucide-react'
+import { BadgePercent, CircleCheck } from 'lucide-react'
 import { api } from '../api'
 import { discounted, exactMoney, useAuth, useSettings } from '../hooks'
 import { groupPercent } from '../groupPricing'
@@ -39,6 +39,17 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
   const [reference, setReference] = useState('')
   const [sent, setSent] = useState(null)
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
+  // a promo code the team gave the traveller: checked with the server, then its percentage comes off the estimate
+  const [promo, setPromo] = useState(null)          // { code, percent } once accepted
+  const [promoInput, setPromoInput] = useState('')
+  const [promoError, setPromoError] = useState('')
+  const [promoBusy, setPromoBusy] = useState(false)
+  async function applyPromo() {
+    const code = promoInput.replace(/\s+/g, '').toUpperCase()
+    if (!code) return setPromoError('Enter your promo code.')
+    setPromoBusy(true); setPromoError('')
+    try { setPromo(await api.post('/promo-code-check/', { code })); setPromoInput('') } catch (ex) { setPromoError(ex.message) } finally { setPromoBusy(false) }
+  }
   const hotel = hotels.find((h) => h.slug === f.hotel)
   const upgrade = stayIncluded && (f.hotel_class || f.car_class)  // a higher class than the one in the price: costs extra
   const beds = isStay ? unit === 'bed' : hotel?.price_basis === 'bed'  // hostels are priced per dorm bed, not per room
@@ -54,6 +65,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
     return { base, hotel: stay, nights: Number(f.nights) || 1 }
   }, [f, estimatedTotal, perGuest, hotel, isStay, tiers, groupPriced, priceFor])
   const total = money.base + money.hotel
+  const promoOff = promo ? Math.round(total * promo.percent) / 100 : 0
 
   async function submit(e) {
     e.preventDefault()
@@ -77,6 +89,7 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
         full_name: f.full_name.trim(), email: user.email, phone: f.phone.trim(),
         travel_date: f.travel_date, end_date: f.end_date || null, guests: Number(f.guests) || 1,
         website: f.website, special_requests: f.special_requests, estimated_total_usd: Math.round(total * 100) / 100, wants_guide: guideOptional && f.wants_guide, ...extra,
+        promo_code: promo?.code || promoInput.trim(),
         details_summary: [extra.details_summary, ...lines].filter(Boolean).join('\n\n'),
       })
       if (res.verification_required) {
@@ -188,9 +201,26 @@ export default function BookingForm({ serviceType, serviceSlug = '', serviceTitl
           </fieldset>
         )}
         <Field label="Special requests"><textarea rows={3} className="input" value={f.special_requests} onChange={set('special_requests')} /></Field>
+        {promo ? (
+          <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-[#16a34a]/30 bg-[#f0fdf4] px-3 py-2 text-[13px] text-[#15803d]">
+            <span className="inline-flex items-center gap-2"><BadgePercent className="h-4 w-4 shrink-0" aria-hidden="true" />{t('Promo code {code}: −{n}%', { code: promo.code, n: promo.percent })}</span>
+            <button type="button" onClick={() => setPromo(null)} className="text-[12.5px] underline underline-offset-2">{t('Remove')}</button>
+          </p>
+        ) : (
+          <div>
+            <label htmlFor="promo-code" className="label">{t('Promo code (if you have one)')}</label>
+            <div className="mt-1 flex gap-2">
+              <input id="promo-code" className="input !mt-0 min-w-0 flex-1 font-mono uppercase" autoComplete="off" value={promoInput} aria-invalid={!!promoError}
+                onChange={(e) => { setPromoInput(e.target.value); setPromoError('') }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyPromo() } }} />
+              <button type="button" onClick={applyPromo} disabled={promoBusy} className="btn-outline !h-11 shrink-0 px-4">{promoBusy && <Spinner />}{t('Apply')}</button>
+            </div>
+            {promoError && <p role="alert" className="mt-1 text-[12px] text-destructive">{t(promoError)}</p>}
+          </div>
+        )}
       </div>
       {total > 0 && (
-        <p className="mt-3 text-[12.5px] text-ink">{t('Estimated total')}: <span className="font-mono text-[15px] text-navy">{exactMoney(total)}</span>
+        <p className="mt-3 text-[12.5px] text-ink">{t('Estimated total')}: {promo && <del className="mr-1.5 font-mono text-[13px] text-ink/70">{exactMoney(total)}</del>}<span className="font-mono text-[15px] text-navy">{exactMoney(total - promoOff)}</span>
+          {promo && <span className="block text-[#15803d]">{t('Promo code {code}: −{n}%', { code: promo.code, n: promo.percent })} (−{exactMoney(promoOff)})</span>}
           {money.hotel > 0 && <span className="block">{t('Tour')} {exactMoney(money.base)} + {t('Hotel')} {exactMoney(money.hotel)}</span>}
           {upgrade && <span className="block text-[#15803d]">{t('Without the extra payment for the higher class')}</span>}
           {guideOptional && f.wants_guide && <span className="block text-[#15803d]">{t('Without the extra payment for the guide')}</span>}
