@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { MailCheck } from 'lucide-react'
+import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth, useFetch } from '../hooks'

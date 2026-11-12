@@ -11,6 +11,10 @@ import SilkRoadMap, { HeroRoute } from '../components/SilkRoadMap'
 import PackageCard, { PACKAGES } from '../components/PackageCard'
 import BestValue from '../components/BestValue'
 
+// Hours of a short tour from its (translated) duration label, e.g. "3 hours", "3 soat", "3 часа"; 0 for anything counted in days.
+const HOURS_RE = /(\d+(?:[.,]\d+)?)\s*(?:hours?|hrs?|soat|час|heures?|h\b|stunden?|horas?)/i
+const hoursOf = (label) => { const m = HOURS_RE.exec(label || ''); return m ? Number(m[1].replace(',', '.')) : 0 }
+
 const TRUST = ['Local, licensed guides', 'Private & small-group journeys', 'Booking confirmed by our team']
 const WHY = [
   [ShieldCheck, 'Trusted Local Partners', 'We work with licensed guides, drivers and family-run guesthouses we know personally in each city.'],
@@ -59,6 +63,9 @@ export default function Home() {
   const classes = useFetch('/tours/?tour_type=workshop', { list: true })
   const reviews = useFetch('/reviews/', { list: true })
   const packages = Object.keys(PACKAGES).map((slug) => tours.data.find((x) => x.slug === slug)).filter(Boolean)
+  // 2 to 4-hour walks in Samarkand, cheapest first (workshops have their own section further down)
+  const shortWalks = tours.data.filter((x) => x.destination_slug === 'samarkand' && !x.parent_slug && x.tour_type !== 'workshop' && hoursOf(x.duration_label) >= 2 && hoursOf(x.duration_label) <= 4)
+    .sort((a, b) => hoursOf(a.duration_label) - hoursOf(b.duration_label))
   const words = t('Discover the Magic of Uzbekistan').split(' ')
   const last = words.length > 1 ? words.pop() : ''
   return (
@@ -99,6 +106,21 @@ export default function Home() {
         <div className="swipe-row mt-8 sm:mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {tours.loading ? <Skeleton count={3} /> : packages.map((x, i) => <PackageCard key={x.slug} tour={x} delay={i * 80} />)}
         </div>
+        {shortWalks.length > 0 && (
+          <div className="mt-12 sm:mt-16">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="eyebrow">{t('2 to 4 hours')}</p>
+                <h3 className="mt-2 font-heading text-[28px] leading-tight text-navy sm:text-[34px]">{t('Short walks in Samarkand')}</h3>
+                <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-ink">{t('Only a few hours to spare? See the bazaar, taste the city and hear its stories with a local guide.')}</p>
+              </div>
+              <Link to="/tours?city=samarkand" className="inline-flex items-center gap-2 text-[13px] font-medium text-turquoise-deep hover:text-navy">{t('All tours in Samarkand')}<ArrowRight className="h-4 w-4" /></Link>
+            </div>
+            <div className="swipe-row mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {shortWalks.map((x, i) => <TourCard key={x.slug} tour={x} delay={i * 80} />)}
+            </div>
+          </div>
+        )}
         <div className="swipe-row mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {dest.loading ? <Skeleton count={3} /> : dest.data.filter((d) => d.featured).map((d, i) => <DestinationCard key={d.slug} destination={d} delay={i * 80} />)}
         </div>

@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import authenticate, get_user_model
 from django.core.files.storage import default_storage
+from django.utils import timezone
 from django.utils.text import slugify
 from django.db.models import Count, Sum
 from rest_framework import permissions, status, viewsets
@@ -190,14 +191,17 @@ def submit_booking(request):
 
     # Email verification: if enabled, send a code and pause the booking
     if site.booking_verification_enabled:
-        code = secrets.token_hex(3).upper()  # 6-digit hex
+        code = f"{secrets.randbelow(10 ** 6):06d}"
         import hmac, hashlib
         code_hash = hmac.new(settings.SECRET_KEY.encode(), code.encode(), hashlib.sha256).hexdigest()
-        booking.verification_code = code
         booking.verification_code_hash = code_hash
-        booking.verification_sent_at = models.datetime.datetime.now()
-        booking.save(update_fields=["verification_code", "verification_code_hash", "verification_sent_at"])
-        notifications.booking_verification_code(booking, code)
+        booking.verification_sent_at = timezone.now()
+        booking.save(update_fields=["verification_code_hash", "verification_sent_at"])
+        try:
+            notifications.booking_verification_code(booking, code)
+        except Exception:
+            booking.delete()
+            return Response({"error": "We could not send the code to your e-mail. Please try again in a few minutes."}, status=503)
         return Response({"reference": booking.reference, "status": booking.status, "verification_required": True}, status=201)
 
     # Normal flow: deposit or notification
@@ -213,30 +217,35 @@ def submit_booking(request):
     return Response({"reference": booking.reference, "status": booking.status}, status=201)
 
 
+BOOKING_CODE_MINUTES = 15
+BOOKING_CODE_TRIES = 5
+
+
 @api_view(["POST"])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 @throttle_classes([BookingThrottle])
 def verify_booking_code(request):
-    """Verify the email code sent after booking; if correct, enable the deposit or notify the team."""
-    import hmac, hashlib
+    """The traveller types the code e-mailed after a booking request; the right code passes the request on (deposit or the team)."""
+    import hashlib
+    import hmac
     reference = str(request.data.get("reference") or "").strip().upper()
-    code = "".join(ch for ch in str(request.data.get("code") or "") if ch.isalnum())[:6]
-    booking = models.BookingRequest.objects.filter(reference=reference).first() if reference else None
-    if not booking or booking.status in ("cancelled", "completed"):
+    code = "".join(ch for ch in str(request.data.get("code") or "") if ch.isdigit())[:6]
+    booking = models.BookingRequest.objects.filter(reference=reference, user=request.user).first() if reference else None
+    if not booking or booking.status in ("cancelled", "completed") or not booking.verification_code_hash:
         return Response({"error": "We could not find this booking."}, status=404)
-    if not booking.verification_code_hash:
-        return Response({"error": "This booking does not require email verification."}, status=400)
-    if booking.verified_at:
-        return Response({"error": "This booking has already been verified."}, status=400)
-    # check the code
-    code_hash = hmac.new(settings.SECRET_KEY.encode(), code.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(code_hash, booking.verification_code_hash):
+    if booking.verification_sent_at and (timezone.now() - booking.verification_sent_at).total_seconds() > BOOKING_CODE_MINUTES * 60:
+        return Response({"error": "The code has expired. Please send the booking request again."}, status=400)
+    tries_key = f"booking-code-tries:{booking.pk}"
+    if cache.get(tries_key, 0) >= BOOKING_CODE_TRIES:
+        return Response({"error": "Too many wrong codes. Please send the booking request again."}, status=400)
+    expected = hmac.new(settings.SECRET_KEY.encode(), code.encode(), hashlib.sha256).hexdigest()
+    if len(code) != 6 or not hmac.compare_digest(expected, booking.verification_code_hash):
+        cache.set(tries_key, cache.get(tries_key, 0) + 1, BOOKING_CODE_MINUTES * 60)
         return Response({"error": "The code is incorrect. Please try again."}, status=400)
-    # verified; clear the code and proceed with deposit or notification
-    booking.verified_at = models.datetime.datetime.now()
-    booking.verification_code = ""
+    cache.delete(tries_key)
+    booking.verified_at = timezone.now()
     booking.verification_code_hash = ""
-    booking.save(update_fields=["verified_at", "verification_code", "verification_code_hash"])
+    booking.save(update_fields=["verified_at", "verification_code_hash"])
 
     site = models.SiteContent.current()
     if site.deposit_enabled and site.deposit_amount > 0:
@@ -244,9 +253,9 @@ def verify_booking_code(request):
             url = payments.start(booking, site)
         except Exception:
             return Response({"error": "The payment could not be started. Please try again in a few minutes."}, status=502)
-        return Response({"ok": True, "payment_url": url})
+        return Response({"ok": True, "reference": booking.reference, "payment_url": url})
     notifications.booking_created(booking)
-    return Response({"ok": True})
+    return Response({"ok": True, "reference": booking.reference})
 
 
 @api_view(["POST"])
@@ -279,9 +288,9 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
-            return models.BookingRequest.objects.all()   # the team works with the site version it has open
-        mine = models.BookingRequest.everywhere   # a traveller's history covers the global and the local site
+        if user.is_staff:   # a request still waiting for its e-mailed code is not a request yet
+            return models.BookingRequest.objects.filter(verification_code_hash="")   # the team works with the site version it has open
+        mine = models.BookingRequest.everywhere.filter(verification_code_hash="")   # a traveller's history covers the global and the local site
         return (mine.filter(email__iexact=user.email) | mine.filter(user=user)).order_by("-created")
 
     @action(detail=True, methods=["post"])
@@ -521,118 +530,24 @@ def _auth_response(user):
     return Response({"token": token.key, "user": s.UserSerializer(user).data})
 
 
-CODE_MINUTES = 15          # how long an e-mailed code works
-CODE_ATTEMPTS = 5          # wrong codes allowed before a new one must be asked for
-CODE_RESEND_SECONDS = 60   # a new code at most once a minute
-
-CODE_MAIL = {
-    "en": ("{code} is your ALI TRAVEL code", "Hello{name},\n\nYour code to confirm your e-mail address and create your ALI TRAVEL account:\n\n    {code}\n\n"
-           "It works for {minutes} minutes. If you did not ask for an account at alitravel.uz, simply ignore this e-mail.\n\nALI TRAVEL"),
-    "uz": ("{code} — ALI TRAVEL tasdiqlash kodi", "Assalomu alaykum{name}!\n\nElektron pochtangizni tasdiqlash va ALI TRAVEL akkauntini ochish uchun kod:\n\n    {code}\n\n"
-           "Kod {minutes} daqiqa amal qiladi. Agar alitravel.uz saytida akkaunt ochmoqchi bo'lmagan bo'lsangiz, bu xatga e'tibor bermang.\n\nALI TRAVEL"),
-    "ru": ("{code} — код ALI TRAVEL", "Здравствуйте{name}!\n\nКод для подтверждения почты и создания аккаунта ALI TRAVEL:\n\n    {code}\n\n"
-           "Код действует {minutes} минут. Если вы не создавали аккаунт на alitravel.uz, просто проигнорируйте это письмо.\n\nALI TRAVEL"),
-}
-
-
-def _code_hash(email, code):
-    import hashlib
-    import hmac
-    return hmac.new(settings.SECRET_KEY.encode(), f"{email}:{code}".encode(), hashlib.sha256).hexdigest()
-
-
-def _send_code(pending, lang):
-    """E-mail a fresh six-digit code. Raises when the mail could not be sent."""
-    from django.core.mail import send_mail
-    from django.utils import timezone
-    code = f"{secrets.randbelow(10 ** 6):06d}"
-    pending.code_hash, pending.attempts, pending.sent_at = _code_hash(pending.email, code), 0, timezone.now()
-    pending.save()
-    subject, body = CODE_MAIL.get(lang, CODE_MAIL["en"])
-    name = f", {pending.full_name}" if pending.full_name else ""
-    send_mail(subject.format(code=code), body.format(code=code, name=name, minutes=CODE_MINUTES), settings.DEFAULT_FROM_EMAIL, [pending.email], fail_silently=False)
-
-
-def _code_answer(pending):
-    return Response({"pending": True, "email": pending.email, "minutes": CODE_MINUTES, "resend_after": CODE_RESEND_SECONDS}, status=status.HTTP_202_ACCEPTED)
-
-
-class CodeThrottle(AnonRateThrottle):
-    scope = "email-code"
-    rate = "30/hour"
-
-
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @throttle_classes([RegisterThrottle])
 def register(request):
-    """Create an account directly: email + password. No email code verification."""
-    from django.contrib.auth.hashers import make_password
+    """Open an account with an e-mail and a password and sign the person in. Bookings, not sign-up, are confirmed with an e-mailed code."""
     from django.contrib.auth.password_validation import validate_password
     from django.core.exceptions import ValidationError
     ser = s.RegisterSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     email, password = ser.validated_data["email"], ser.validated_data["password"]
     if User.objects.filter(username=email).exists():
-        return Response({"error": "This email is already registered."}, status=400)
+        return Response({"error": "An account with this email already exists."}, status=400)
     try:
         validate_password(password, User(username=email, email=email))
     except ValidationError as error:
         return Response({"error": error.messages[0], "fields": {"password": error.messages}}, status=400)
-    # Create the account directly (no email verification)
-    user = User.objects.create_user(username=email, email=email, password=password)
-    user.full_name = ser.validated_data.get("full_name", "").strip()
-    user.save()
-    # Return the auth token so the user is signed in
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({"username": user.username, "email": user.email, "token": token.key}, status=201)
-
-
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])
-@throttle_classes([CodeThrottle])
-def resend_code(request):
-    from django.utils import timezone
-    email = (request.data.get("email") or "").strip().lower()
-    pending = models.PendingSignup.objects.filter(email=email).first()
-    if not pending:
-        return Response({"error": "Please fill in the form again to get a new code."}, status=400)
-    if (timezone.now() - pending.sent_at).total_seconds() < CODE_RESEND_SECONDS:
-        return Response({"error": "We have just sent you a code. Please wait a minute before asking for a new one."}, status=429)
-    try:
-        _send_code(pending, (request.headers.get("X-Lang") or "en")[:5])
-    except Exception:
-        return Response({"error": "We could not send the code to this e-mail address. Please check it and try again."}, status=503)
-    return _code_answer(pending)
-
-
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])
-@throttle_classes([CodeThrottle])
-def verify_email(request):
-    """Step 2: the right code creates the account and signs the person in."""
-    import hmac
-    from django.utils import timezone
-    email = (request.data.get("email") or "").strip().lower()
-    code = "".join(ch for ch in str(request.data.get("code") or "") if ch.isdigit())
-    pending = models.PendingSignup.objects.filter(email=email).first()
-    if not pending:
-        return Response({"error": "Please fill in the form again to get a new code."}, status=400)
-    if (timezone.now() - pending.sent_at).total_seconds() > CODE_MINUTES * 60:
-        return Response({"error": "The code has expired. Ask for a new code."}, status=400)
-    if pending.attempts >= CODE_ATTEMPTS:
-        return Response({"error": "Too many wrong codes. Ask for a new code."}, status=400)
-    if not hmac.compare_digest(pending.code_hash, _code_hash(email, code)):
-        pending.attempts += 1
-        pending.save(update_fields=["attempts"])
-        return Response({"error": "The code is not correct.", "attempts_left": max(CODE_ATTEMPTS - pending.attempts, 0)}, status=400)
-    if User.objects.filter(username=email).exists():
-        pending.delete()
-        return Response({"error": "An account with this email already exists."}, status=400)
-    first, _, last = pending.full_name.partition(" ")
-    user = User(username=email, email=email, first_name=first, last_name=last, password=pending.password_hash)
-    user.save()
-    pending.delete()
+    first, _, last = ser.validated_data.get("full_name", "").strip().partition(" ")
+    user = User.objects.create_user(username=email, email=email, password=password, first_name=first, last_name=last)
     response = _auth_response(user)
     response.status_code = status.HTTP_201_CREATED
     return response

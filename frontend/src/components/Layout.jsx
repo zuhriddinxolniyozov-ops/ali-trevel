@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom'
 import { Check, Globe, Mail, Menu, Phone, Send, Tag, X } from 'lucide-react'
 import { useAuth, useBackClose, useFetch, useSettings } from '../hooks'
 import { LANGS, useI18n } from '../i18n'
@@ -250,9 +250,61 @@ function Footer() {
   )
 }
 
+/* Back and Forward return to where the page was left; a new page opens at the top. Positions are kept per history entry in
+   sessionStorage, so they also survive a reload of the page that was opened next. */
+const SCROLL_KEY = 'ali-scroll'
+const readPositions = () => { try { return JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}') } catch { return {} } }
+
+function useScrollMemory() {
+  const { key, pathname } = useLocation()
+  const navType = useNavigationType()
+  const current = useRef(key)
+  const lastPath = useRef(pathname)
+  const leaving = useRef(false)   // a link was clicked: the next page may shorten the document, which must not overwrite this page's place
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
+    let frame = 0, timer = 0
+    const write = () => {
+      const all = readPositions()
+      all[current.current] = window.scrollY
+      const keys = Object.keys(all)
+      if (keys.length > 80) keys.slice(0, keys.length - 80).forEach((k) => delete all[k])
+      try { sessionStorage.setItem(SCROLL_KEY, JSON.stringify(all)) } catch { /* storage unavailable */ }
+    }
+    const save = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { if (!leaving.current) write() }) }
+    const onClick = (e) => {
+      if (!e.target.closest?.('a[href]')) return
+      write(); leaving.current = true
+      clearTimeout(timer); timer = setTimeout(() => { leaving.current = false }, 1500)
+    }
+    window.addEventListener('scroll', save, { passive: true })
+    document.addEventListener('click', onClick, true)
+    return () => { window.removeEventListener('scroll', save); document.removeEventListener('click', onClick, true); cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [])
+  useEffect(() => {
+    current.current = key
+    leaving.current = false
+    const moved = lastPath.current !== pathname
+    lastPath.current = pathname
+    if (navType === 'POP') {
+      const y = readPositions()[key]
+      if (!y) { if (moved) window.scrollTo(0, 0); return undefined }
+      // the page may still be growing (photos, a list arriving): keep trying for a moment until it is tall enough
+      let tries = 0, frame = 0
+      const go = () => {
+        window.scrollTo(0, y)
+        if (Math.abs(window.scrollY - y) > 2 && tries++ < 60) frame = requestAnimationFrame(go)
+      }
+      go()
+      return () => cancelAnimationFrame(frame)
+    }
+    if (moved) window.scrollTo(0, 0)
+    return undefined
+  }, [key])   // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 export default function Layout() {
-  const { pathname } = useLocation()
-  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  useScrollMemory()
   return (
     <SelectionProvider>
     <div className="flex min-h-screen flex-col bg-background">

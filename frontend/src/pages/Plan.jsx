@@ -8,6 +8,7 @@ import { PHONE_RE, Photo, Spinner } from '../components/ui'
 import SignInToBook from '../components/SignInToBook'
 import { DepositNote, goToPayment, useDeposit } from '../components/Deposit'
 import PhoneInput from '../components/PhoneInput'
+import BookingCode from '../components/BookingCode'
 import { PACKAGES } from '../components/PackageCard'
 import { parseStop } from '../components/DayPlan'
 
@@ -54,12 +55,14 @@ function SendItinerary({ plan }) {
         details_summary: `${plan.summary}\n\nMeeting: ${f.meet_date} ${f.meet_time} · ${f.meet_place.trim()}`, special_requests: plan.outline,
         arrival_date: f.meet_date, arrival_time: f.meet_time, meeting_place: f.meet_place.trim(),
       })
+      if (res.verification_required) { setReference(res.reference); setState('verifying'); return }   // the code e-mailed to the account first
       if (goToPayment(res)) return
       setReference(res.reference); setState('done')
     } catch (ex) { setState('error'); setMessage(ex.message) }
   }
 
   if (!user) return <SignInToBook className="mt-6" id="send-itinerary" />
+  if (state === 'verifying') return <BookingCode className="mt-6" reference={reference} email={user.email} onVerified={() => setState('done')} />
   if (state === 'done') {
     return (
       <div className="mt-6 flex items-start gap-3 rounded-sm border border-turquoise-deep/30 bg-sand-soft/60 p-5">

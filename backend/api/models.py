@@ -124,7 +124,7 @@ class SiteContent(MarketScoped):
     deposit_enabled = models.BooleanField(default=False)
     deposit_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("1.00"))
     deposit_refund_on_cancel = models.BooleanField(default=True)   # a traveller who cancels gets it back at once
-    booking_verification_enabled = models.BooleanField(default=False)   # booking requires email code verification
+    booking_verification_enabled = models.BooleanField(default=True)   # a booking request waits for a code e-mailed to the account
 
     @classmethod
     def current(cls):

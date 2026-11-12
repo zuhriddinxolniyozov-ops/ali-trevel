@@ -2,19 +2,56 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 import { api, getToken, onUploads, setToken, uploadState } from './api'
 import { useI18n } from './i18n'
 import { useEdit } from './edit/context'
-import { isLocal, roundPrice, som } from './market'
+import { MARKET, isLocal, roundPrice, som } from './market'
 
 /* ---------- data loading ---------- */
+// What a page loaded is kept, so coming back to it (Back, or a reload) shows it at once while a fresh copy is fetched behind it.
+// Public answers are also kept in sessionStorage (this tab only, so a reload is instant); signed-in answers stay in memory.
+const memory = new Map()
+const STORE = 'ali-api:'
+const cacheKey = (path, list, lang) => `${MARKET}|${lang}|${list ? 'l' : 'g'}|${getToken() ? `u${getToken().slice(-6)}` : 'anon'}|${path}`
+
+function readCache(key) {
+  if (memory.has(key)) return memory.get(key)
+  if (!key.includes('|anon|')) return undefined
+  try {
+    const raw = sessionStorage.getItem(STORE + key)
+    if (raw) { const data = JSON.parse(raw); memory.set(key, data); return data }
+  } catch { /* storage unavailable */ }
+  return undefined
+}
+
+function writeCache(key, data) {
+  memory.set(key, data)
+  if (!key.includes('|anon|')) return
+  try { sessionStorage.setItem(STORE + key, JSON.stringify(data)) } catch {
+    try { Object.keys(sessionStorage).filter((k) => k.startsWith(STORE)).forEach((k) => sessionStorage.removeItem(k)) } catch { /* full or blocked: memory is enough */ }
+  }
+}
+
 export function useFetch(path, { list = false } = {}) {
   const { lang } = useI18n()
   const { version } = useEdit() // bumps after the site editor saves, so pages refetch
-  const [state, setState] = useState({ data: list ? [] : null, loading: true, error: null })
+  const [state, setState] = useState(() => {
+    const hit = path ? readCache(cacheKey(path, list, lang)) : undefined
+    return hit !== undefined ? { data: hit, loading: false, error: null } : { data: list ? [] : null, loading: true, error: null }
+  })
+  const latest = useRef(null)
   const load = useCallback(() => {
     if (!path) return
-    setState((s) => ({ ...s, loading: true }))
+    const key = cacheKey(path, list, lang)
+    latest.current = key
+    const hit = readCache(key)
+    if (hit !== undefined) setState((s) => (s.data === hit && !s.loading ? s : { data: hit, loading: false, error: null }))
+    else setState((s) => ({ ...s, loading: true }))
     api[list ? 'list' : 'get'](path)
-      .then((data) => setState({ data, loading: false, error: null }))
-      .catch((e) => setState({ data: list ? [] : null, loading: false, error: e }))
+      .then((data) => {
+        if (latest.current !== key) return   // the page moved on to another address meanwhile
+        const same = hit !== undefined && JSON.stringify(hit) === JSON.stringify(data)
+        writeCache(key, data)
+        if (!same) setState({ data, loading: false, error: null })
+      })
+      .catch((e) => { if (latest.current === key && hit === undefined) setState({ data: list ? [] : null, loading: false, error: e }) })
   }, [path, list, lang, version])
   useEffect(() => { load() }, [load])
   return { ...state, reload: load }
@@ -58,10 +95,7 @@ export function AuthProvider({ children }) {
   const value = {
     user, ready, isAuthenticated: !!user,
     login: (email, password) => api.post('/auth/login/', { email, password }).then(finish),
-    // step 1 e-mails a code ({pending: true}); step 2 (verifyEmail) creates the account and signs in
-    register: (payload) => api.post('/auth/register/', payload).then((d) => (d?.token ? finish(d) : d)),
-    verifyEmail: (email, code) => api.post('/auth/verify-email/', { email, code }).then(finish),
-    resendCode: (email) => api.post('/auth/register/resend/', { email }),
+    register: (payload) => api.post('/auth/register/', payload).then(finish),
     logout: async () => { try { await api.post('/auth/logout/') } catch { /* already signed out */ } setToken(null); setUser(null) },
     updateProfile: (payload) => api.patch('/auth/me/', payload).then(setUser),
   }

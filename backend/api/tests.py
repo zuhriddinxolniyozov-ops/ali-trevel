@@ -8,6 +8,16 @@ from rest_framework.test import APIClient, APITestCase
 from . import models
 
 
+def booking_codes_off(*markets):
+    """Tests about what happens after a booking is passed on skip the e-mailed booking code (it has its own tests)."""
+    from .market import use
+    for market in markets or ("global", "local"):
+        with use(market):
+            site = models.SiteContent.current()
+            site.booking_verification_enabled = False
+            site.save()
+
+
 class AccountingTests(APITestCase):
     def setUp(self):
         self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
@@ -268,6 +278,7 @@ class NotificationTests(APITestCase):
             "phone": "+49 151 2345678", "travel_date": "2027-05-01", "guests": 3, "estimated_total_usd": "1200.00"}
 
     def setUp(self):
+        booking_codes_off()
         cache.clear()
         self.admin = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
 
@@ -551,6 +562,7 @@ from unittest import mock
 @override_settings(NOTIFY_ASYNC=False, NOTIFY_EMAILS=["team@example.com"], TELEGRAM_BOT_TOKEN="123:abc", TELEGRAM_CHAT_ID="", TELEGRAM_TEAM_USERNAMES=["Al1_travel"], SITE_URL="https://alitravel.example")
 class TelegramBookingTests(APITestCase):
     def setUp(self):
+        booking_codes_off()
         self.api = FakeTelegram()
         self.bot = Bot(self.api)
         self.tour = models.Tour.objects.create(
@@ -1833,6 +1845,7 @@ class LocalMarketTests(APITestCase):
     RATE = Decimal("12000")
 
     def setUp(self):
+        booking_codes_off("global")   # the local copy takes its settings from the global site
         call_command("seed", verbosity=0)
         from .local_copy import make_local
         make_local(self.RATE)
@@ -1958,65 +1971,92 @@ from django.utils import timezone  # noqa: E402
 
 
 class EmailCodeSignupTests(APITestCase):
-    """An account is opened only with the code e-mailed to its address, and only signed-in travellers can book."""
+    """Signing up needs only an e-mail and a password; a booking request waits for a code e-mailed to the account."""
 
     form = {"full_name": "Dilnoza Karimova", "email": "Dilnoza@Example.com", "password": "Samarqand-2026!"}
 
     def setUp(self):
+        booking_codes_off()
         cache.clear()
 
-    def code(self):
-        import re
-        return re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
-
-    def test_the_account_exists_only_after_the_emailed_code(self):
+    def test_an_account_opens_at_once_with_email_and_password(self):
         answer = self.client.post("/api/auth/register/", self.form, format="json", HTTP_X_LANG="uz")
-        self.assertEqual(answer.status_code, 202)
-        self.assertTrue(answer.json()["pending"])
-        self.assertFalse(get_user_model().objects.filter(username="dilnoza@example.com").exists())   # not before the code
-        self.assertEqual(mail.outbox[-1].to, ["dilnoza@example.com"])
-        self.assertIn("tasdiqlash kodi", mail.outbox[-1].subject)
-        pending = models.PendingSignup.objects.get(email="dilnoza@example.com")
-        self.assertNotIn(self.code(), pending.code_hash)
-        self.assertNotIn("Samarqand-2026!", pending.password_hash)
-        done = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
-        self.assertEqual(done.status_code, 201)
-        self.assertTrue(done.json()["token"])
-        self.assertFalse(models.PendingSignup.objects.exists())
+        self.assertEqual(answer.status_code, 201)
+        self.assertTrue(answer.json()["token"])
+        self.assertTrue(get_user_model().objects.filter(username="dilnoza@example.com").exists())
+        self.assertEqual(mail.outbox, [])
         login = self.client.post("/api/auth/login/", {"email": "dilnoza@example.com", "password": "Samarqand-2026!"}, format="json")
         self.assertEqual(login.status_code, 200)
 
-    def test_wrong_codes_are_limited_and_a_new_code_needs_a_minute(self):
-        self.client.post("/api/auth/register/", self.form, format="json")
-        right = self.code()
-        wrong = "000000" if right != "000000" else "111111"
-        for left in (4, 3, 2, 1, 0):
-            answer = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": wrong}, format="json")
-            self.assertEqual((answer.status_code, answer.json()["attempts_left"]), (400, left))
-        blocked = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": right}, format="json")
-        self.assertIn("Too many wrong codes", blocked.json()["error"])          # even the right code no longer works
-        self.assertEqual(self.client.post("/api/auth/register/resend/", {"email": "dilnoza@example.com"}, format="json").status_code, 429)
-        models.PendingSignup.objects.update(sent_at=timezone.now() - datetime.timedelta(minutes=2))
-        self.assertEqual(self.client.post("/api/auth/register/resend/", {"email": "dilnoza@example.com"}, format="json").status_code, 202)
-        ok = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
-        self.assertEqual(ok.status_code, 201)
-
-    def test_an_old_code_expires_and_a_weak_password_or_taken_email_is_refused(self):
-        self.client.post("/api/auth/register/", self.form, format="json")
-        models.PendingSignup.objects.update(sent_at=timezone.now() - datetime.timedelta(minutes=16))
-        late = self.client.post("/api/auth/verify-email/", {"email": "dilnoza@example.com", "code": self.code()}, format="json")
-        self.assertIn("expired", late.json()["error"])
-        weak = self.client.post("/api/auth/register/", {**self.form, "email": "weak@example.com", "password": "12345678"}, format="json")
+    def test_a_weak_password_or_taken_email_is_refused(self):
+        weak = self.client.post("/api/auth/register/", {**self.form, "password": "12345678"}, format="json")
         self.assertEqual(weak.status_code, 400)
         get_user_model().objects.create_user("taken@example.com", "taken@example.com", "x")
         taken = self.client.post("/api/auth/register/", {**self.form, "email": "taken@example.com"}, format="json")
         self.assertEqual(taken.status_code, 400)
 
-    def test_a_mail_that_cannot_be_sent_opens_nothing(self):
-        with mock.patch("django.core.mail.send_mail", side_effect=OSError("smtp down")):
-            answer = self.client.post("/api/auth/register/", self.form, format="json")
+    def test_a_booking_waits_for_the_code_mailed_to_the_account(self):
+        import re
+        site = models.SiteContent.current()
+        site.booking_verification_enabled = True
+        site.save()
+        user = get_user_model().objects.create_user("trav@example.com", "trav@example.com", "x")
+        self.client.force_authenticate(user)
+        body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Ali", "phone": "+998 90 123 45 67",
+                "travel_date": "2027-05-01", "guests": 2}
+        with mock.patch("api.notifications._background", side_effect=lambda fn, *a, **k: fn(*a, **k)):
+            made = self.client.post("/api/bookings-submit/", body, format="json")
+        self.assertEqual(made.status_code, 201)
+        self.assertTrue(made.json()["verification_required"])
+        booking = models.BookingRequest.objects.get(reference=made.json()["reference"])
+        self.assertIsNone(booking.verified_at)
+        code = re.search(r"\n\s+(\d{6})\n", mail.outbox[-1].body).group(1)
+        self.assertEqual(mail.outbox[-1].to, ["trav@example.com"])
+        wrong = self.client.post("/api/bookings-verify/", {"reference": booking.reference, "code": "000000" if code != "000000" else "111111"}, format="json")
+        self.assertEqual(wrong.status_code, 400)
+        right = self.client.post("/api/bookings-verify/", {"reference": booking.reference, "code": code}, format="json")
+        self.assertEqual(right.status_code, 200)
+        booking.refresh_from_db()
+        self.assertIsNotNone(booking.verified_at)
+        self.assertEqual(booking.verification_code_hash, "")
+
+    def unverified_booking(self, email="trav@example.com"):
+        import re
+        site = models.SiteContent.current()
+        site.booking_verification_enabled = True
+        site.save()
+        user = get_user_model().objects.create_user(email, email, "x")
+        self.client.force_authenticate(user)
+        body = {"service_type": "tour", "service_slug": "t", "service_title": "T", "full_name": "Ali", "phone": "+998 90 123 45 67", "travel_date": "2027-05-01", "guests": 2}
+        ref = self.client.post("/api/bookings-submit/", body, format="json").json()["reference"]
+        return ref, re.search(r"\n\s+(\d{6})\n", mail.outbox[-1].body).group(1)
+
+    def test_a_booking_code_has_limits(self):
+        ref, code = self.unverified_booking()
+        staff = get_user_model().objects.create_user("boss@example.com", "boss@example.com", "x", is_staff=True)
+        self.client.force_authenticate(staff)
+        self.assertEqual(self.client.get("/api/bookings/").json(), [])   # the team does not see it before the code
+        self.assertEqual(self.client.post("/api/bookings-verify/", {"reference": ref, "code": code}, format="json").status_code, 404)   # not their booking
+        self.client.force_authenticate(get_user_model().objects.get(username="trav@example.com"))
+        wrong = "000000" if code != "000000" else "111111"
+        for _ in range(5):
+            self.client.post("/api/bookings-verify/", {"reference": ref, "code": wrong}, format="json")
+        blocked = self.client.post("/api/bookings-verify/", {"reference": ref, "code": code}, format="json")
+        self.assertIn("Too many wrong codes", blocked.json()["error"])
+        ref2, code2 = self.unverified_booking("late@example.com")
+        models.BookingRequest.objects.filter(reference=ref2).update(verification_sent_at=timezone.now() - datetime.timedelta(minutes=16))
+        self.assertIn("expired", self.client.post("/api/bookings-verify/", {"reference": ref2, "code": code2}, format="json").json()["error"])
+
+    def test_a_code_that_cannot_be_mailed_leaves_no_booking(self):
+        site = models.SiteContent.current()
+        site.booking_verification_enabled = True
+        site.save()
+        self.client.force_authenticate(get_user_model().objects.create_user("t@example.com", "t@example.com", "x"))
+        body = {"service_type": "tour", "service_slug": "t", "service_title": "T", "full_name": "Ali", "phone": "+998 90 123 45 67", "travel_date": "2027-05-01", "guests": 2}
+        with mock.patch("api.notifications._send_email", side_effect=OSError("smtp down")):
+            answer = self.client.post("/api/bookings-submit/", body, format="json")
         self.assertEqual(answer.status_code, 503)
-        self.assertFalse(models.PendingSignup.objects.exists())
+        self.assertFalse(models.BookingRequest.objects.exists())
 
     def test_booking_needs_a_signed_in_account_and_uses_its_confirmed_email(self):
         body = {"service_type": "tour", "service_slug": "t", "service_title": "Samarkand City Tour", "full_name": "Ali", "email": "fake@nowhere.test",
@@ -2071,6 +2111,7 @@ class BookingDepositTests(APITestCase):
             "travel_date": "2027-05-01", "guests": 2, "estimated_total_usd": 418}
 
     def setUp(self):
+        booking_codes_off()
         cache.clear()
         self.site = models.SiteContent.current()
         self.site.deposit_enabled, self.site.deposit_amount = True, Decimal("1.00")

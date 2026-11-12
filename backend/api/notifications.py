@@ -272,6 +272,28 @@ def _tell_about_booking(data):
     _tell_the_team(f"New booking request {data['ref']} ({data['source']})", text, reply_to=None if data["email"].endswith(".invalid") else data["email"], markup=decide, telegram_html=_booking_html(data))
 
 
+VERIFICATION_MAIL = {
+    "en": ("Confirm your booking {ref} - ALI TRAVEL",
+           "Hello {name},\n\nTo confirm your booking request {ref}, enter this code in the booking form:\n\n    {code}\n\n"
+           "The code works for 15 minutes. If you did not make this request, ignore this e-mail.\n\nALI TRAVEL"),
+    "uz": ("{ref} broningizni tasdiqlang - ALI TRAVEL",
+           "Assalomu alaykum, {name}!\n\n{ref} raqamli bron so'rovingizni tasdiqlash uchun ushbu kodni bron formaga kiriting:\n\n    {code}\n\n"
+           "Kod 15 daqiqa amal qiladi. Agar bu so'rovni siz yubormagan bo'lsangiz, bu xatga e'tibor bermang.\n\nALI TRAVEL"),
+    "ru": ("Podtverdite bronirovanie {ref} - ALI TRAVEL",
+           "Zdravstvuyte, {name}!\n\nChtoby podtverdit' zapros bronirovaniya {ref}, vvedite etot kod v forme bronirovaniya:\n\n    {code}\n\n"
+           "Kod deystvitelen 15 minut. Esli vy ne otpravlyali etot zapros, prosto ignorirujte pis'mo.\n\nALI TRAVEL"),
+}
+
+
+def booking_verification_code(booking, code):
+    """E-mail the six-digit code that confirms a booking request. Raises when the mail could not be sent."""
+    lang = booking.lang if booking.lang in VERIFICATION_MAIL else "en"
+    subject, body = VERIFICATION_MAIL[lang]
+    if booking.email.endswith(".invalid"):
+        return
+    _send_email(subject.format(ref=booking.reference), body.format(ref=booking.reference, name=booking.full_name, code=code), [booking.email])   # at once: the traveller waits for it
+
+
 def booking_created(booking):
     data = _booking_data(booking)
     _background(_tell_about_booking, data)
